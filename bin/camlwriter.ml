@@ -83,7 +83,10 @@ let editor_process_keypress () =
     let c = editor_read_key() in
     let editor_process_keypress' c = 
         match c with
-        | _ when c = ctrl_key 'q' -> exit 0
+        | _ when c = ctrl_key 'q' -> 
+            output_string stdout "\x1b[2J"; (* Clear screen *)
+            output_string stdout "\x1b[H";  (* Reposition cursor *)
+            exit 0
         | _ -> Printf.printf "%d\r\n" c (* TODO: REMOVE *)
     in
     editor_process_keypress' c
