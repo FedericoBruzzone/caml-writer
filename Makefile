@@ -15,6 +15,7 @@ all: build
 build: 	
 	$(DUNE) build @all
 
+# --profile release
 run: 
 	$(DUNE) exec $(CAML_WRITER)
 
