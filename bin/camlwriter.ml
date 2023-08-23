@@ -13,7 +13,7 @@ type editor_config = {
     screencols  : int;
 }
 
-let e : editor_config option ref = ref None;;
+let e : (editor_config option ref) = ref None;;
 
 let get_orig_termio () : Unix.terminal_io =
     match !e with
@@ -102,7 +102,7 @@ let enable_row_mode () : unit =
                     (Unix.error_message err) func arg)
 ;;
 
-let editor_read_key () =
+let editor_read_key () : int =
     let c = 
         try 
             input_byte stdin
@@ -115,15 +115,37 @@ let editor_read_key () =
     c
 ;;
 
+let get_cursor_position () : (int * int) =
+    output_string stdout "\x1b[6n";
+    (* flush stdout; *)
+    let buf = Bytes.create 32 in
+    let rec get_cursor_position' (count : int) =
+        if count >= 31 then
+            ()
+        else
+            Bytes.set buf count (input_char stdin);
+            if Bytes.get buf count = 'R' then
+                ()
+            else
+                get_cursor_position' (count + 1)
+    in
+    get_cursor_position' 0;
+    Bytes.set buf 32 '\000';
+    Printf.printf "\r\n position: %c \r\n" (Bytes.get buf 1);
+    flush stdout;
+    let _ = editor_read_key() in
+    (0,0)
+;;
+        
+
 let get_window_size () : (int * int) =
     let columns = Window_size.get_columns() in
     let rows    = Window_size.get_rows() in
     match (columns, rows) with
     | (Some columns, Some rows) -> (columns, rows)
-    | _ -> die "get_window_size"
-;; 
+    | _ -> get_cursor_position();
+;;
     
-
 (* === Input === *)
 let editor_process_keypress () =
     let c = editor_read_key() in
@@ -133,14 +155,14 @@ let editor_process_keypress () =
             output_string stdout "\x1b[2J"; (* Clear screen *)
             output_string stdout "\x1b[H";  (* Reposition cursor *)
             exit 0
-        | _ -> output_string stdout (string_of_int c)
+        | _ -> () (* output_string stdout (string_of_int c) *)
     in
     editor_process_keypress' c;
 ;;
 
 (* === Output === *)
 let editor_draw_rows () =
-    for _ = 0 to 24 do
+    for _ = 0 to get_screenrows () do
         output_string stdout "~\r\n"
     done
 ;;
