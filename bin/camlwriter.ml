@@ -1,3 +1,4 @@
+open Caml_writer
 (* open Unix *)
 
 (* === Utils === *)
@@ -8,8 +9,8 @@ let ctrl_key (c : char) = (Char.code c) land 0x1f ;;
 (* === Data === *)
 type editor_config = {
     orig_termio : Unix.terminal_io;
-    (* screenrows  : int; *)
-    (* screencols  : int; *)
+    screenrows  : int;
+    screencols  : int;
 }
 
 let e : editor_config option ref = ref None;;
@@ -18,6 +19,18 @@ let get_orig_termio () : Unix.terminal_io =
     match !e with
     | None -> assert false
     | Some config -> config.orig_termio
+;;
+
+let get_screenrows () : int =
+    match !e with
+    | None -> assert false
+    | Some config -> config.screenrows
+;;
+
+let get_screencols () : int =
+    match !e with
+    | None -> assert false
+    | Some config -> config.screencols
 ;;
 
 (* === Terminal === *)
@@ -50,6 +63,8 @@ let enable_row_mode () : unit =
     in
     let config : editor_config = {
         orig_termio = orig_termio;
+        screenrows  = -1;        
+        screencols  = -1;
     } 
     in
     e := Some config;
@@ -100,6 +115,15 @@ let editor_read_key () =
     c
 ;;
 
+let get_window_size () : (int * int) =
+    let columns = Window_size.get_columns() in
+    let rows    = Window_size.get_rows() in
+    match (columns, rows) with
+    | (Some columns, Some rows) -> (columns, rows)
+    | _ -> die "get_window_size"
+;; 
+    
+
 (* === Input === *)
 let editor_process_keypress () =
     let c = editor_read_key() in
@@ -131,20 +155,30 @@ let editor_refresh_screen () =
 ;;
 
 (* === Init === *)
+let init_editor () : unit =
+    let (columns, rows) = get_window_size() in
+    match !e with
+    | None -> assert false
+    | Some config -> 
+        let config' : editor_config = {
+            orig_termio = config.orig_termio;
+            screenrows  = rows;
+            screencols  = columns;
+        }
+    in
+    e := Some config'
+;;
+
 let loop () : unit = 
     while true do 
         flush stdout; (* TODO: REMOVE? *)
         editor_refresh_screen();
         editor_process_keypress();
-
-        match !e with
-        | None -> Printf.printf "None"
-        | Some config -> Printf.printf "%d" config.orig_termio.Unix.c_vtime; 
-        ;
     done
 ;;
 
 let main () = 
     enable_row_mode();
+    init_editor();
     loop ();
 ;;
