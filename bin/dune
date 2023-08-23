@@ -2,4 +2,5 @@
  (public_name caml_writer)
  (name main)
  (libraries caml_writer 
-            unix))
+            unix)
+)

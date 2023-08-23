@@ -13,7 +13,7 @@ CAML_WRITER = caml_writer
 all: build
 
 build: 	
-	$(DUNE) build @all
+	$(DUNE) build --verbose @all
 
 # --profile release
 run: 
