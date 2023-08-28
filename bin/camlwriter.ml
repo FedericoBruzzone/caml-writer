@@ -13,7 +13,7 @@ type editor_config = {
     screencols  : int;
 }
 
-let e : (editor_config option ref) = ref None;;
+let e : (editor_config option ref) = ref None ;;
 
 let get_orig_termio () : Unix.terminal_io =
     match !e with
@@ -35,11 +35,9 @@ let get_screencols () : int =
 
 (* === Terminal === *)
 let die (s : string) =
-    output_string stdout "\x1b[2J"; (* Clear screen *)
-    
+    output_string stdout "\x1b[2J";  (* Clear screen *)
     output_string stdout "\x1b[H";  (* Reposition cursor *)
-
-    Printf.eprintf "%s\r\n" s;
+    Printf.eprintf "%s\r\n" s;     (* Print error message *)
     exit 1
 ;;
 
@@ -48,24 +46,24 @@ let disable_row_mode (orig_termio : Unix.terminal_io) : unit =
         Unix.tcsetattr Unix.stdin Unix.TCSAFLUSH orig_termio
     with
         Unix.Unix_error (err, func, arg) ->
-            die (Printf.sprintf "tcsetattr(%s, %s, %s)" 
+            die (Printf.sprintf "tcsetattr(%s, %s, %s)"
                     (Unix.error_message err) func arg)
 ;;
 
 let enable_row_mode () : unit =
-    let orig_termio : Unix.terminal_io = 
-        try 
-            Unix.tcgetattr Unix.stdin 
-        with 
+    let orig_termio : Unix.terminal_io =
+        try
+            Unix.tcgetattr Unix.stdin
+        with
             Unix.Unix_error (err, func, arg) ->
-                die (Printf.sprintf "tcgetattr(%s, %s, %s)" 
+                die (Printf.sprintf "tcgetattr(%s, %s, %s)"
                         (Unix.error_message err) func arg)
     in
     let config : editor_config = {
         orig_termio = orig_termio;
-        screenrows  = -1;        
+        screenrows  = -1;
         screencols  = -1;
-    } 
+    }
     in
     e := Some config;
     at_exit(fun () -> disable_row_mode (get_orig_termio ()));
@@ -87,37 +85,37 @@ let enable_row_mode () : unit =
     in
     try
         (*
-        The second argument of `Unix.tcsetattr` indicates when the status change takes place: 
-        immediately (TCSANOW), 
-        when all pending output has been transmitted (TCSADRAIN), or 
-        after flushing all input that has been received but not read (TCSAFLUSH). 
+        The second argument of `Unix.tcsetattr` indicates when the status change takes place:
+        immediately (TCSANOW),
+        when all pending output has been transmitted (TCSADRAIN), or
+        after flushing all input that has been received but not read (TCSAFLUSH).
 
-        TCSADRAIN is recommended when changing the output parameters; 
+        TCSADRAIN is recommended when changing the output parameters;
         TCSAFLUSH, when changing the input parameters.
         *)
         Unix.tcsetattr Unix.stdin Unix.TCSAFLUSH new_termio
     with
         Unix.Unix_error (err, func, arg) ->
-            die (Printf.sprintf "tcsetattr(%s, %s, %s)" 
+            die (Printf.sprintf "tcsetattr(%s, %s, %s)"
                     (Unix.error_message err) func arg)
 ;;
 
 let editor_read_key () : int =
-    let c = 
-        try 
+    let c =
+        try
             input_byte stdin
         with
             | Sys_blocked_io -> die "input_byte"
-            | Sys_error _ -> die "input_byte" 
+            | Sys_error _ -> die "input_byte"
             (* | End_of_file -> exit 0 *)
             | _ -> 0
-    in 
+    in
     c
 ;;
 
 let get_cursor_position () : (int * int) =
     output_string stdout "\x1b[6n";
-    (* flush stdout; *)
+    flush stdout;
     let buf = Bytes.create 32 in
     let rec get_cursor_position' (count : int) =
         if count >= 31 then
@@ -132,38 +130,51 @@ let get_cursor_position () : (int * int) =
     get_cursor_position' 0;
     Bytes.set buf 32 '\000';
     Printf.printf "\r\n position: %c \r\n" (Bytes.get buf 1);
-    flush stdout;
-    let _ = editor_read_key() in
-    (0,0)
+    if Bytes.get buf 0 <> '\x1b' || Bytes.get buf 1 <> '[' then
+        (-1,-1)
+    else
+        let (_, _) = Scanf.sscanf (Bytes.to_string buf) "\x1b[%d;%dR" (fun x y -> (x,y)) in
+        (0,0)
 ;;
-        
 
 let get_window_size () : (int * int) =
     let columns = Window_size.get_columns() in
-    let rows    = Window_size.get_rows() in
+    let rows = Window_size.get_rows() in
     match (columns, rows) with
     | (Some columns, Some rows) -> (columns, rows)
     | _ -> get_cursor_position();
 ;;
-    
-(* === Input === *)
-let editor_process_keypress () =
-    let c = editor_read_key() in
-    let editor_process_keypress' c = 
-        match c with
-        | _ when c = ctrl_key 'q' -> 
-            output_string stdout "\x1b[2J"; (* Clear screen *)
-            output_string stdout "\x1b[H";  (* Reposition cursor *)
-            exit 0
-        | _ -> () (* output_string stdout (string_of_int c) *)
+
+(* === Append buffer === *)
+type abuf = {
+    b : string;
+    len : int;
+}
+
+let abuf_init = {
+    b = "";
+    len = 0;
+}
+
+let ab_append (ab : abuf ref) (s : string) (len : int) =
+    let ab' = {
+        b = (!ab.b ^ s);
+        len = !ab.len + len;
+    }
     in
-    editor_process_keypress' c;
+    ab := ab'
+;;
+
+let ab_free (ab : abuf ref) =
+    ab := abuf_init
 ;;
 
 (* === Output === *)
 let editor_draw_rows () =
-    for _ = 0 to get_screenrows () do
-        output_string stdout "~\r\n"
+    for i = 0 to get_screenrows () do
+        output_string stdout "~";
+        if i < get_screenrows () then
+            output_string stdout "\r\n"
     done
 ;;
 
@@ -176,12 +187,26 @@ let editor_refresh_screen () =
     output_string stdout "\x1b[H";  (* Reposition cursor *)
 ;;
 
+(* === Input === *)
+let editor_process_keypress () =
+    let c = editor_read_key() in
+    let editor_process_keypress' c =
+        match c with
+        | _ when c = ctrl_key 'q' ->
+            output_string stdout "\x1b[2J"; (* Clear screen *)
+            output_string stdout "\x1b[H";  (* Reposition cursor *)
+            exit 0
+        | _ -> () (* output_string stdout (string_of_int c) *)
+    in
+    editor_process_keypress' c;
+;;
+
 (* === Init === *)
 let init_editor () : unit =
     let (columns, rows) = get_window_size() in
     match !e with
     | None -> assert false
-    | Some config -> 
+    | Some config ->
         let config' : editor_config = {
             orig_termio = config.orig_termio;
             screenrows  = rows;
@@ -191,15 +216,15 @@ let init_editor () : unit =
     e := Some config'
 ;;
 
-let loop () : unit = 
-    while true do 
+let loop () : unit =
+    while true do
         flush stdout; (* TODO: REMOVE? *)
         editor_refresh_screen();
         editor_process_keypress();
     done
 ;;
 
-let main () = 
+let main () =
     enable_row_mode();
     init_editor();
     loop ();
