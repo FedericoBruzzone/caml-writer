@@ -2,15 +2,20 @@ open Caml_writer
 (* open Unix *)
 
 (* === Utils === *)
+let caml_writer_version = "0.0.1" ;;
+
 let is_control_char (* iscntrl() *) (c : int) : bool = c < 32 || c = 127 ;;
 
 let ctrl_key (c : char) = (Char.code c) land 0x1f ;;
+
 
 (* === Data === *)
 type editor_config = {
     orig_termio : Unix.terminal_io;
     screenrows  : int;
     screencols  : int;
+    cx          : int;
+    cy          : int;
 }
 
 let e : (editor_config option ref) = ref None ;;
@@ -31,6 +36,18 @@ let get_screencols () : int =
     match !e with
     | None -> assert false
     | Some config -> config.screencols
+;;
+
+let get_cx () : int =
+    match !e with
+    | None -> assert false
+    | Some config -> config.cx
+;;
+
+let get_cy () : int =
+    match !e with
+    | None -> assert false
+    | Some config -> config.cy
 ;;
 
 (* === Terminal === *)
@@ -63,6 +80,8 @@ let enable_row_mode () : unit =
         orig_termio = orig_termio;
         screenrows  = -1;
         screencols  = -1;
+        cx          = 0;
+        cy          = 0;
     }
     in
     e := Some config;
@@ -107,15 +126,27 @@ let editor_read_key () : int =
         with
             | Sys_blocked_io -> die "input_byte"
             | Sys_error _ -> die "input_byte"
-            (* | End_of_file -> exit 0 *)
             | _ -> 0
     in
-    c
+    if Char.chr c = '\x1b' then
+        let c' = input_byte stdin in
+        let c'' = input_byte stdin in
+        if Char.chr c' = '[' then
+            match Char.chr c'' with
+            | 'A' -> Char.code 'w'
+            | 'B' -> Char.code 's'
+            | 'C' -> Char.code 'd'
+            | 'D' -> Char.code 'a'
+            | _ -> Char.code '\x1b'
+        else
+            Char.code '\x1b'
+    else
+        c
 ;;
 
 let get_cursor_position () : (int * int) =
-    output_string stdout "\x1b[6n";
-    flush stdout;
+    (* output_string stdout "\x1b[6n"; *)
+    (* flush stdout; *)
     let buf = Bytes.create 32 in
     let rec get_cursor_position' (count : int) =
         if count >= 31 then
@@ -129,11 +160,10 @@ let get_cursor_position () : (int * int) =
     in
     get_cursor_position' 0;
     Bytes.set buf 32 '\000';
-    Printf.printf "\r\n position: %c \r\n" (Bytes.get buf 1);
     if Bytes.get buf 0 <> '\x1b' || Bytes.get buf 1 <> '[' then
         (-1,-1)
     else
-        let (_, _) = Scanf.sscanf (Bytes.to_string buf) "\x1b[%d;%dR" (fun x y -> (x,y)) in
+        let (_, _) = Scanf.sscanf (Bytes.to_string buf) "\x1b[%d;%d" (fun x y -> (x,y)) in
         (0,0)
 ;;
 
@@ -166,28 +196,58 @@ let ab_append (ab : abuf ref) (s : string) (len : int) =
 ;;
 
 let ab_free (ab : abuf ref) =
-    ab := abuf_init
+    ab := {
+        b = "";
+        len = 0;
+    }
 ;;
 
 (* === Output === *)
-let editor_draw_rows () =
+let editor_draw_rows (ab : abuf ref) =
     for i = 0 to get_screenrows () do
-        output_string stdout "~";
+        if i = get_screenrows () / 3 then
+            let welcome = "Caml Writer -- version " ^ caml_writer_version in
+            let welcome_len = if String.length welcome > get_screencols () then get_screencols () else String.length welcome in
+            let padding = (get_screencols () - welcome_len) / 2 in
+            if padding <> 0 then
+                ab_append ab "~" 1;
+            for _ = 0 to padding - 1 do
+                ab_append ab " " 1;
+            done;
+            ab_append ab welcome welcome_len;
+        else
+            ab_append ab "~" 1;
+        ab_append ab "\x1b[K" 3;
         if i < get_screenrows () then
-            output_string stdout "\r\n"
+            ab_append ab "\r\n" 2;
     done
 ;;
 
 let editor_refresh_screen () =
-    output_string stdout "\x1b[2J"; (* Clear screen *)
-    output_string stdout "\x1b[H";  (* Reposition cursor *)
+    let ab : abuf ref = ref abuf_init in
+    ab_append ab "\x1b[?25l" 6; (* Hide cursor *)
+    ab_append ab "\x1b[H" 3;    (* Reposition cursor *)
+    editor_draw_rows(ab);
 
-    editor_draw_rows();
+    let buf = Printf.sprintf "\x1b[%d;%dH" (get_cy () + 1) (get_cx () + 1) in
+    ab_append ab buf (String.length buf);
 
-    output_string stdout "\x1b[H";  (* Reposition cursor *)
+    ab_append ab "\x1b[H" 3;    (* Reposition cursor *)
+    ab_append ab "\x1b[?25h" 6; (* Show cursor *)
+
+    output_string stdout !ab.b;
+    (* ab_free ab; *)
 ;;
 
 (* === Input === *)
+let editor_move_cursor (c : char) =
+    match c with
+    | 'a' -> e := Some { (Option.get !e) with cx = (get_cx ()) - 1 }
+    | 'd' -> e := Some { (Option.get !e) with cy = (get_cx ()) + 1 }
+    | 'w' -> e := Some { (Option.get !e) with cx = (get_cy ()) - 1 }
+    | 's' -> e := Some { (Option.get !e) with cy = (get_cy ()) + 1 }
+    | _ -> ()
+
 let editor_process_keypress () =
     let c = editor_read_key() in
     let editor_process_keypress' c =
@@ -196,6 +256,10 @@ let editor_process_keypress () =
             output_string stdout "\x1b[2J"; (* Clear screen *)
             output_string stdout "\x1b[H";  (* Reposition cursor *)
             exit 0
+        | _ when Char.chr c = 'w' -> editor_move_cursor (Char.chr c)
+        | _ when Char.chr c = 'a' -> editor_move_cursor (Char.chr c)
+        | _ when Char.chr c = 's' -> editor_move_cursor (Char.chr c)
+        | _ when Char.chr c = 'd' -> editor_move_cursor (Char.chr c)
         | _ -> () (* output_string stdout (string_of_int c) *)
     in
     editor_process_keypress' c;
@@ -211,6 +275,8 @@ let init_editor () : unit =
             orig_termio = config.orig_termio;
             screenrows  = rows;
             screencols  = columns;
+            cx          = 0;
+            cy          = 0;
         }
     in
     e := Some config'
