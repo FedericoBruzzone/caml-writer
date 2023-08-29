@@ -8,6 +8,12 @@ let is_control_char (* iscntrl() *) (c : int) : bool = c < 32 || c = 127 ;;
 
 let ctrl_key (c : char) = (Char.code c) land 0x1f ;;
 
+let arrow_left  = 1000 ;;
+let arrow_right = 1001 ;;
+let arrow_up    = 1002 ;;
+let arrow_down  = 1003 ;;
+let page_up     = 1004 ;;
+let page_down   = 1005 ;;
 
 (* === Data === *)
 type editor_config = {
@@ -78,8 +84,8 @@ let enable_row_mode () : unit =
     in
     let config : editor_config = {
         orig_termio = orig_termio;
-        screenrows  = -1;
-        screencols  = -1;
+        screenrows  = 0;
+        screencols  = 0;
         cx          = 0;
         cy          = 0;
     }
@@ -91,7 +97,7 @@ let enable_row_mode () : unit =
                          Unix.c_icanon = false; (* Read byte-by-byte, not line-by-line *)
                          Unix.c_isig   = false; (* Disable Ctrl-C (now is 3 byte) and Ctrl-Z (now is 26 byte) *)
                          Unix.c_ixon   = false; (* Disable Ctrl-S (now is 19 byte) and Ctrl-Q (now is 17 byte) *)
-                         (* Ctrl-V (22 byte) and Ctrl-O (15 byte) are already disable *)
+                         (* (* Ctrl-V (22 byte) and Ctrl-O (15 byte) are already disable *) *)
                          Unix.c_icrnl  = false; (* Enable Ctrl-M (now is 13 byte) and Enter (now is 13 byte) *)
                          Unix.c_opost  = false; (* Enable output processing *)
                          Unix.c_brkint = false; (* SIGINT signal to be sent to the program *)
@@ -129,19 +135,30 @@ let editor_read_key () : int =
             | _ -> 0
     in
     if Char.chr c = '\x1b' then
+        let _ = Printf.printf "ESC\n" in
         let c' = input_byte stdin in
         let c'' = input_byte stdin in
         if Char.chr c' = '[' then
-            match Char.chr c'' with
-            | 'A' -> Char.code 'w'
-            | 'B' -> Char.code 's'
-            | 'C' -> Char.code 'd'
-            | 'D' -> Char.code 'a'
-            | _ -> Char.code '\x1b'
+            if c'' >= 0 && c'' <= 9 then
+                let c''' = input_byte stdin in
+                if Char.chr c''' = '~' then
+                    match c'' with
+                    | 5 -> page_up
+                    | 6 -> page_down
+                    | _ -> Char.code '\x1b'
+                else
+                    Char.code '\x1b'
+            else
+                match Char.chr c'' with
+                | 'A' -> arrow_up
+                | 'B' -> arrow_down
+                | 'C' -> arrow_right
+                | 'D' -> arrow_left
+                | _ -> Char.code '\x1b'
         else
             Char.code '\x1b'
     else
-        c
+       c
 ;;
 
 let get_cursor_position () : (int * int) =
@@ -226,27 +243,36 @@ let editor_draw_rows (ab : abuf ref) =
 let editor_refresh_screen () =
     let ab : abuf ref = ref abuf_init in
     ab_append ab "\x1b[?25l" 6; (* Hide cursor *)
-    ab_append ab "\x1b[H" 3;    (* Reposition cursor *)
+    (* ab_append ab "\x1b[H" 3;    (* Reposition cursor *) *)
     editor_draw_rows(ab);
 
     let buf = Printf.sprintf "\x1b[%d;%dH" (get_cy () + 1) (get_cx () + 1) in
     ab_append ab buf (String.length buf);
 
-    ab_append ab "\x1b[H" 3;    (* Reposition cursor *)
+    (* ab_append ab "\x1b[H" 3;    (* Reposition cursor *) *)
     ab_append ab "\x1b[?25h" 6; (* Show cursor *)
 
     output_string stdout !ab.b;
-    (* ab_free ab; *)
+    ab_free ab;
 ;;
 
 (* === Input === *)
-let editor_move_cursor (c : char) =
+let editor_move_cursor c  =
     match c with
-    | 'a' -> e := Some { (Option.get !e) with cx = (get_cx ()) - 1 }
-    | 'd' -> e := Some { (Option.get !e) with cy = (get_cx ()) + 1 }
-    | 'w' -> e := Some { (Option.get !e) with cx = (get_cy ()) - 1 }
-    | 's' -> e := Some { (Option.get !e) with cy = (get_cy ()) + 1 }
+    | _ when c = arrow_left -> (* a *)
+        if (get_cx ()) <> 0 then
+            e := Some { (Option.get !e) with cx = (get_cx ()) - 1 }
+    | _ when c = arrow_right -> (* d *)
+        if (get_cx ()) < (get_screencols ()) - 1 then
+            e := Some { (Option.get !e) with cx = (get_cx ()) + 1 }
+    | _ when c = arrow_up -> (* w *)
+        if (get_cy ()) <> 0 then
+            e := Some { (Option.get !e) with cy = (get_cy ()) - 1 }
+    | _ when c = arrow_down -> (* s *)
+        if (get_cy ()) < (get_screenrows ()) - 1 then
+            e := Some { (Option.get !e) with cy = (get_cy ()) + 1 }
     | _ -> ()
+;;
 
 let editor_process_keypress () =
     let c = editor_read_key() in
@@ -256,11 +282,22 @@ let editor_process_keypress () =
             output_string stdout "\x1b[2J"; (* Clear screen *)
             output_string stdout "\x1b[H";  (* Reposition cursor *)
             exit 0
-        | _ when Char.chr c = 'w' -> editor_move_cursor (Char.chr c)
-        | _ when Char.chr c = 'a' -> editor_move_cursor (Char.chr c)
-        | _ when Char.chr c = 's' -> editor_move_cursor (Char.chr c)
-        | _ when Char.chr c = 'd' -> editor_move_cursor (Char.chr c)
-        | _ -> () (* output_string stdout (string_of_int c) *)
+        | _ when c = arrow_left -> editor_move_cursor c
+        | _ when c = arrow_right -> editor_move_cursor c
+        | _ when c = arrow_up -> editor_move_cursor c
+        | _ when c = arrow_down -> editor_move_cursor c
+        | _ when c = page_up ->
+            let times = get_screenrows () in
+            for _ = 0 to times do
+                editor_move_cursor arrow_up
+            done
+        | _ when c = page_down ->
+            Printf.printf "page_down\n";
+            let times = get_screenrows () in
+            for _ = 0 to times do
+                editor_move_cursor arrow_down
+            done
+        | _ -> ()
     in
     editor_process_keypress' c;
 ;;
@@ -268,30 +305,25 @@ let editor_process_keypress () =
 (* === Init === *)
 let init_editor () : unit =
     let (columns, rows) = get_window_size() in
-    match !e with
-    | None -> assert false
-    | Some config ->
-        let config' : editor_config = {
-            orig_termio = config.orig_termio;
-            screenrows  = rows;
-            screencols  = columns;
-            cx          = 0;
-            cy          = 0;
-        }
-    in
-    e := Some config'
+    e := Some {
+        orig_termio = get_orig_termio ();
+        screenrows  = rows;
+        screencols  = columns;
+        cx          = 0;
+        cy          = 0;
+    }
 ;;
 
 let loop () : unit =
     while true do
-        flush stdout; (* TODO: REMOVE? *)
         editor_refresh_screen();
-        editor_process_keypress();
+        editor_process_keypress ();
+        flush stdout;
     done
 ;;
 
 let main () =
-    enable_row_mode();
-    init_editor();
+    enable_row_mode ();
+    init_editor ();
     loop ();
 ;;
