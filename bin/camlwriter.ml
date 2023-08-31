@@ -19,12 +19,19 @@ let page_up     = 1007 ;;
 let page_down   = 1008 ;;
 
 (* === Data === *)
+type editor_row = {
+    chars : string;
+    size  : int;
+}
+
 type editor_config = {
     orig_termio : Unix.terminal_io;
     screenrows  : int;
     screencols  : int;
     cx          : int;
     cy          : int;
+    erow        : editor_row;
+    numrows     : int;
 }
 
 let e : (editor_config option ref) = ref None ;;
@@ -59,6 +66,24 @@ let get_cy () : int =
     | Some config -> config.cy
 ;;
 
+let get_erow_chars () : string =
+    match !e with
+    | None -> assert false
+    | Some config -> config.erow.chars
+;;
+
+let get_erow_size () : int =
+    match !e with
+    | None -> assert false
+    | Some config -> config.erow.size
+;;
+
+let get_numrows () : int =
+    match !e with
+    | None -> assert false
+    | Some config -> config.numrows
+;;
+
 (* === Terminal === *)
 let die (s : string) =
     output_string stdout "\x1b[2J";  (* Clear screen *)
@@ -85,15 +110,18 @@ let enable_row_mode () : unit =
                 die (Printf.sprintf "tcgetattr(%s, %s, %s)"
                         (Unix.error_message err) func arg)
     in
-    let config : editor_config = {
+    e := Some {
         orig_termio = orig_termio;
         screenrows  = 0;
         screencols  = 0;
         cx          = 0;
         cy          = 0;
-    }
-    in
-    e := Some config;
+        erow        = {
+            chars = "";
+            size  = 0;
+        };
+        numrows     = 0;
+    };
     at_exit(fun () -> disable_row_mode (get_orig_termio ()));
     let new_termio = { (get_orig_termio ()) with
                          Unix.c_echo   = false; (* Disable print character *)
@@ -206,6 +234,19 @@ let get_window_size () : (int * int) =
     | _ -> get_cursor_position();
 ;;
 
+(* File i/o *)
+let editor_open() =
+    let line = "Hello, world!" in
+    let line_len = 13 in
+    e := Some { (Option.get !e) with
+        erow = {
+            chars = line ^ "\000";
+            size  = line_len;
+        };
+        numrows = 1;
+    }
+;;
+
 (* === Append buffer === *)
 type abuf = {
     b : string;
@@ -236,21 +277,26 @@ let ab_free (ab : abuf ref) =
 (* === Output === *)
 let editor_draw_rows (ab : abuf ref) =
     for i = 0 to get_screenrows () do
-        if i = get_screenrows () / 3 then
-            let welcome = "Caml Writer -- version " ^ caml_writer_version in
-            let welcome_len = if String.length welcome > get_screencols () then get_screencols () else String.length welcome in
-            let padding = (get_screencols () - welcome_len) / 2 in
-            if padding <> 0 then
+        match i with
+        | _ when i >= get_numrows() ->
+            if i = get_screenrows () / 3 then
+                let welcome = "Caml Writer -- version " ^ caml_writer_version in
+                let welcome_len = if String.length welcome > get_screencols () then get_screencols () else String.length welcome in
+                let padding = (get_screencols () - welcome_len) / 2 in
+                if padding <> 0 then
+                    ab_append ab "~" 1;
+                for _ = 0 to padding - 1 do
+                    ab_append ab " " 1;
+                done;
+                ab_append ab welcome welcome_len;
+            else
                 ab_append ab "~" 1;
-            for _ = 0 to padding - 1 do
-                ab_append ab " " 1;
-            done;
-            ab_append ab welcome welcome_len;
-        else
-            ab_append ab "~" 1;
-        ab_append ab "\x1b[K" 3;
-        if i < get_screenrows () then
-            ab_append ab "\r\n" 2;
+                ab_append ab "\x1b[K" 3;
+                if i < get_screenrows () then
+                    ab_append ab "\r\n" 2
+        | _ ->
+            let len = if get_erow_size () > get_screencols () then get_screencols () else get_erow_size () in
+            ab_append ab (get_erow_chars ()) len;
     done
 ;;
 
@@ -328,6 +374,11 @@ let init_editor () : unit =
         screencols  = columns;
         cx          = 0;
         cy          = 0;
+        erow        = {
+            chars = "";
+            size  = 0;
+        };
+        numrows     = 0;
     }
 ;;
 
@@ -342,6 +393,7 @@ let loop () : unit =
 let main () =
     enable_row_mode ();
     init_editor ();
+    editor_open ();
     loop ();
 ;;
 
