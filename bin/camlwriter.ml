@@ -104,7 +104,7 @@ let enable_row_mode () : unit =
                          Unix.c_inpck  = false; (* Enable parity checking *)
                          Unix.c_istrip = false; (* 8th bit of each input byte to be stripped, meaning it will set it to 0. *)
                          Unix.c_csize  = 8;     (* Character size (now is 8 bit) *)
-                         Unix.c_vmin   = 0;     (* Minimum number of bytes of input needed before input function returns *)
+                         Unix.c_vmin   = 0;     (* Minimum number of reaebytes of input needed before input function returns *)
                          Unix.c_vtime  = 1;     (* Maximum amount of time to wait before input function returns *)
                      }
     in
@@ -134,6 +134,7 @@ let editor_read_key () : int =
             | Sys_error _ -> die "input_byte"
             | _ -> 0
     in
+    let _ = Printf.printf "c = %d\n" c in
     if Char.chr c = '\x1b' then
         let _ = Printf.printf "ESC\n" in
         let c' = input_byte stdin in
@@ -316,9 +317,9 @@ let init_editor () : unit =
 
 let loop () : unit =
     while true do
-        editor_refresh_screen();
-        editor_process_keypress ();
         flush stdout;
+        (* editor_refresh_screen(); *)
+        editor_process_keypress ();
     done
 ;;
 
@@ -327,3 +328,4 @@ let main () =
     init_editor ();
     loop ();
 ;;
+
