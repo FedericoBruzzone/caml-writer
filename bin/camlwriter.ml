@@ -12,8 +12,11 @@ let arrow_left  = 1000 ;;
 let arrow_right = 1001 ;;
 let arrow_up    = 1002 ;;
 let arrow_down  = 1003 ;;
-let page_up     = 1004 ;;
-let page_down   = 1005 ;;
+let del_key     = 1004 ;;
+let home_key    = 1005 ;;
+let end_key     = 1006 ;;
+let page_up     = 1007 ;;
+let page_down   = 1008 ;;
 
 (* === Data === *)
 type editor_config = {
@@ -134,18 +137,21 @@ let editor_read_key () : int =
             | Sys_error _ -> die "input_byte"
             | _ -> 0
     in
-    let _ = Printf.printf "c = %d\n" c in
     if Char.chr c = '\x1b' then
-        let _ = Printf.printf "ESC\n" in
         let c' = input_byte stdin in
         let c'' = input_byte stdin in
         if Char.chr c' = '[' then
-            if c'' >= 0 && c'' <= 9 then
+            if Char.chr c'' >= '0' && Char.chr c'' <= '9' then
                 let c''' = input_byte stdin in
                 if Char.chr c''' = '~' then
-                    match c'' with
-                    | 5 -> page_up
-                    | 6 -> page_down
+                    match Char.chr c'' with
+                    | '1' -> home_key
+                    | '3' -> del_key
+                    | '4' -> end_key
+                    | '5' -> page_up
+                    | '6' -> page_down
+                    | '7' -> home_key
+                    | '8' -> end_key
                     | _ -> Char.code '\x1b'
                 else
                     Char.code '\x1b'
@@ -155,6 +161,13 @@ let editor_read_key () : int =
                 | 'B' -> arrow_down
                 | 'C' -> arrow_right
                 | 'D' -> arrow_left
+                | 'H' -> home_key
+                | 'F' -> end_key
+                | _ -> Char.code '\x1b'
+        else if Char.chr c' = 'O' then
+                match Char.chr c'' with
+                | 'H' -> home_key
+                | 'F' -> end_key
                 | _ -> Char.code '\x1b'
         else
             Char.code '\x1b'
@@ -260,16 +273,16 @@ let editor_refresh_screen () =
 (* === Input === *)
 let editor_move_cursor c  =
     match c with
-    | _ when c = arrow_left -> (* a *)
+    | _ when c = arrow_left ->
         if (get_cx ()) <> 0 then
             e := Some { (Option.get !e) with cx = (get_cx ()) - 1 }
-    | _ when c = arrow_right -> (* d *)
+    | _ when c = arrow_right ->
         if (get_cx ()) < (get_screencols ()) - 1 then
             e := Some { (Option.get !e) with cx = (get_cx ()) + 1 }
-    | _ when c = arrow_up -> (* w *)
+    | _ when c = arrow_up ->
         if (get_cy ()) <> 0 then
             e := Some { (Option.get !e) with cy = (get_cy ()) - 1 }
-    | _ when c = arrow_down -> (* s *)
+    | _ when c = arrow_down ->
         if (get_cy ()) < (get_screenrows ()) - 1 then
             e := Some { (Option.get !e) with cy = (get_cy ()) + 1 }
     | _ -> ()
@@ -287,13 +300,16 @@ let editor_process_keypress () =
         | _ when c = arrow_right -> editor_move_cursor c
         | _ when c = arrow_up -> editor_move_cursor c
         | _ when c = arrow_down -> editor_move_cursor c
+        | _ when c = home_key ->
+            e := Some { (Option.get !e) with cx = 0 }
+        | _ when c = end_key ->
+            e := Some { (Option.get !e) with cx = (get_screencols ()) - 1 }
         | _ when c = page_up ->
             let times = get_screenrows () in
             for _ = 0 to times do
                 editor_move_cursor arrow_up
             done
         | _ when c = page_down ->
-            Printf.printf "page_down\n";
             let times = get_screenrows () in
             for _ = 0 to times do
                 editor_move_cursor arrow_down
@@ -318,7 +334,7 @@ let init_editor () : unit =
 let loop () : unit =
     while true do
         flush stdout;
-        (* editor_refresh_screen(); *)
+        editor_refresh_screen();
         editor_process_keypress ();
     done
 ;;
