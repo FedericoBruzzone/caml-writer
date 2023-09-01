@@ -33,6 +33,7 @@ type editor_config = {
     erow        : editor_row array;
     numrows     : int;
     rowoff      : int;
+    coloff      : int;
 }
 
 let e : (editor_config option ref) = ref None ;;
@@ -73,28 +74,34 @@ let get_numrows () : int =
     | Some config -> config.numrows
 ;;
 
-let get_erow () =
+let get_erow () : editor_row array =
     match !e with
     | None -> assert false
     | Some config -> config.erow
 ;;
 
-let get_erow_chars (i : int) =
+let get_erow_chars (i : int) : string =
     match !e with
     | None -> assert false
     | Some config -> config.erow.(i).chars
 ;;
 
-let get_erow_size (i : int) =
+let get_erow_size (i : int) : int =
     match !e with
     | None -> assert false
     | Some config -> config.erow.(i).size
 ;;
 
-let get_rowoff () =
+let get_rowoff () : int =
     match !e with
     | None -> assert false
     | Some config -> config.rowoff
+;;
+
+let get_coloff () : int =
+    match !e with
+    | None -> assert false
+    | Some config -> config.coloff
 ;;
 
 (* === Terminal === *)
@@ -135,6 +142,7 @@ let enable_row_mode () : unit =
         };
         numrows     = 0;
         rowoff      = 0;
+        coloff      = 0;
     };
     at_exit(fun () -> disable_row_mode (get_orig_termio ()));
     let new_termio = { (get_orig_termio ()) with
@@ -321,10 +329,16 @@ let ab_free (ab : abuf ref) =
 (* === Output === *)
 let editor_scroll () =
     match get_cy () with
-    | _ when (get_cy ()) < (get_numrows ()) ->
+    | _ when (get_cy ()) < (get_rowoff ()) ->
         e := Some { (Option.get !e) with rowoff = get_cy () }
-    | _ when (get_cy ()) >= (get_numrows ()) ->
-        e := Some { (Option.get !e) with rowoff = get_numrows () - 1 }
+    | _ when (get_cy ()) >= (get_rowoff ()) + (get_screenrows ()) ->
+        e := Some { (Option.get !e) with rowoff = (get_cy ()) - (get_screenrows ()) + 1 }
+    | _ -> ();
+    match get_cx () with
+    | _ when (get_cx ()) < (get_coloff ()) ->
+        e := Some { (Option.get !e) with coloff = get_cx () }
+    | _ when (get_cx ()) >= (get_coloff ()) + (get_screencols ()) ->
+        e := Some { (Option.get !e) with coloff = (get_cx ()) - (get_screencols ()) + 1 }
     | _ -> ()
 ;;
 
@@ -348,10 +362,20 @@ let editor_draw_rows (ab : abuf ref) =
             else
                 ab_append ab "~" 1;
         | __ when filerow < get_numrows () ->
-            let len = if get_erow_size filerow > get_screencols ()
-                then get_screencols ()
-                else get_erow_size filerow in
-            ab_append ab (get_erow_chars filerow) len;
+            let len = match get_erow_size filerow - get_coloff () with
+                      | _ when get_erow_size filerow - get_coloff () > get_screencols () ->
+                          get_screencols ()
+                      | _ when get_erow_size filerow - get_coloff () < 0 ->
+                            0
+                      | _ -> get_erow_size filerow - get_coloff ()
+            in
+            let sub_row =
+                try
+                    (String.sub (get_erow_chars filerow) (get_coloff ()) len)
+                with
+                    Invalid_argument _ -> ""
+            in
+            ab_append ab sub_row len;
         | _ -> assert false
         in
         ab_append ab "\x1b[K" 3;
@@ -367,7 +391,7 @@ let editor_refresh_screen () =
     ab_append ab "\x1b[H" 3;    (* Reposition cursor *)
     editor_draw_rows(ab);
 
-    let buf = Printf.sprintf "\x1b[%d;%dH" (get_cy () + 1) (get_cx () + 1) in
+    let buf = Printf.sprintf "\x1b[%d;%dH" (get_cy () - get_rowoff() + 1) (get_cx () - get_coloff() + 1) in
     ab_append ab buf (String.length buf);
 
     (* ab_append ab "\x1b[H" 3;    (* Reposition cursor *) *)
@@ -378,13 +402,24 @@ let editor_refresh_screen () =
 
 (* === Input === *)
 let editor_move_cursor c  =
-    match c with
+    let row = if (get_cy ()) >= (get_numrows ()) then "" else (get_erow_chars (get_cy ())) in
+    let _ = match c with
     | _ when c = arrow_left ->
         if (get_cx ()) <> 0 then
             e := Some { (Option.get !e) with cx = (get_cx ()) - 1 }
+        else if (get_cy ()) > 0 then
+            e := Some { (Option.get !e) with
+                cy = (get_cy ()) - 1;
+                cx = (get_erow_size ((get_cy ()) - 1));
+            }
     | _ when c = arrow_right ->
-        if (get_cx ()) < (get_screencols ()) - 1 then
+        if row <> "" && (get_cx ()) < (String.length row) then
             e := Some { (Option.get !e) with cx = (get_cx ()) + 1 }
+        else if (get_cy ()) < (get_numrows ()) then
+            e := Some { (Option.get !e) with
+                cy = (get_cy ()) + 1;
+                cx = 0;
+            }
     | _ when c = arrow_up ->
         if (get_cy ()) <> 0 then
             e := Some { (Option.get !e) with cy = (get_cy ()) - 1 }
@@ -392,6 +427,11 @@ let editor_move_cursor c  =
         if (get_cy ()) < (get_screenrows ()) then
             e := Some { (Option.get !e) with cy = (get_cy ()) + 1 }
     | _ -> ()
+    in
+    let row = if (get_cy ()) >= (get_numrows ()) then "" else (get_erow_chars (get_cy ())) in
+    let rowlen = String.length row in
+    if (get_cx ()) > rowlen then
+        e := Some { (Option.get !e) with cx = rowlen }
 ;;
 
 let editor_process_keypress () =
@@ -440,6 +480,7 @@ let init_editor () : unit =
         };
         numrows     = 0;
         rowoff      = 0;
+        coloff      = 0;
     }
 ;;
 
