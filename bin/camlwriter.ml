@@ -30,7 +30,7 @@ type editor_config = {
     screencols  : int;
     cx          : int;
     cy          : int;
-    erow        : editor_row;
+    erow        : editor_row array;
     numrows     : int;
 }
 
@@ -66,22 +66,28 @@ let get_cy () : int =
     | Some config -> config.cy
 ;;
 
-let get_erow_chars () : string =
-    match !e with
-    | None -> assert false
-    | Some config -> config.erow.chars
-;;
-
-let get_erow_size () : int =
-    match !e with
-    | None -> assert false
-    | Some config -> config.erow.size
-;;
-
 let get_numrows () : int =
-    match !e with
+        match !e with
     | None -> assert false
     | Some config -> config.numrows
+;;
+
+let get_erow () =
+    match !e with
+    | None -> assert false
+    | Some config -> config.erow
+;;
+
+let get_erow_chars (i : int) =
+    match !e with
+    | None -> assert false
+    | Some config -> config.erow.(i).chars
+;;
+
+let get_erow_size (i : int) =
+    match !e with
+    | None -> assert false
+    | Some config -> config.erow.(i).size
 ;;
 
 (* === Terminal === *)
@@ -116,7 +122,7 @@ let enable_row_mode () : unit =
         screencols  = 0;
         cx          = 0;
         cy          = 0;
-        erow        = {
+        erow        = Array.make 0 {
             chars = "";
             size  = 0;
         };
@@ -234,17 +240,49 @@ let get_window_size () : (int * int) =
     | _ -> get_cursor_position();
 ;;
 
-(* File i/o *)
-let editor_open() =
-    let line = "Hello, world!" in
-    let line_len = 13 in
-    e := Some { (Option.get !e) with
-        erow = {
-            chars = line ^ "\000";
-            size  = line_len;
-        };
-        numrows = 1;
+(* Row operations *)
+let editor_append_row (s : string) (len : int) =
+    let row = {
+        chars = s;
+        size  = len;
     }
+    in
+    e := Some { (Option.get !e) with
+        erow = Array.append (get_erow ()) [| row |];
+        numrows = (get_numrows ()) + 1;
+    }
+
+(* File i/o *)
+(* let editor_open () = *)
+(*     let line = "Hello, world!" in *)
+(*     let line_len = 13 in *)
+(*     e := Some { (Option.get !e) with *)
+(*         erow = { *)
+(*             chars = line ^ "\000"; *)
+(*             size  = line_len; *)
+(*         }; *)
+(*         numrows = 1; *)
+(*     } *)
+(* ;; *)
+
+let editor_open (file_name : string) =
+    let fp =
+        try
+            open_in file_name
+        with
+            Sys_error _ -> die "open_in"
+    in
+    let rec open_file' (fp : in_channel) =
+        try
+            let line = input_line fp in
+            let line_len = String.length line in
+            editor_append_row line line_len;
+            open_file' fp
+        with
+            End_of_file -> ()
+    in
+    open_file' fp;
+    close_in fp
 ;;
 
 (* === Append buffer === *)
@@ -279,7 +317,7 @@ let editor_draw_rows (ab : abuf ref) =
     for i = 0 to get_screenrows () - 1 do
         let _ = match i with
         | _ when i >= get_numrows () ->
-            if i = get_screenrows () / 3 then
+            if get_numrows() = 0 && i = get_screenrows () / 3 then
                 let welcome = "Caml Writer -- version " ^ caml_writer_version in
                 let welcome_len = if String.length welcome > get_screencols () then get_screencols () else String.length welcome in
                 let padding = (get_screencols () - welcome_len) / 2 in
@@ -292,8 +330,8 @@ let editor_draw_rows (ab : abuf ref) =
             else
                 ab_append ab "~" 1;
         | __ when i < get_numrows () ->
-            let len = if get_erow_size () > get_screencols () then get_screencols () else get_erow_size () in
-            ab_append ab (get_erow_chars ()) len;
+            let len = if get_erow_size i > get_screencols () then get_screencols () else get_erow_size i in
+            ab_append ab (get_erow_chars i) len;
         | _ -> assert false
         in
         ab_append ab "\x1b[K" 3;
@@ -305,7 +343,7 @@ let editor_draw_rows (ab : abuf ref) =
 let editor_refresh_screen () =
     let ab : abuf ref = ref abuf_init in
     ab_append ab "\x1b[?25l" 6; (* Hide cursor *)
-    (* ab_append ab "\x1b[H" 3;    (* Reposition cursor *) *)
+    ab_append ab "\x1b[H" 3;    (* Reposition cursor *)
     editor_draw_rows(ab);
 
     let buf = Printf.sprintf "\x1b[%d;%dH" (get_cy () + 1) (get_cx () + 1) in
@@ -375,7 +413,7 @@ let init_editor () : unit =
         screencols  = columns;
         cx          = 0;
         cy          = 0;
-        erow        = {
+        erow        = Array.make 0 {
             chars = "";
             size  = 0;
         };
@@ -396,7 +434,8 @@ let loop () : unit =
 let main () =
     enable_row_mode ();
     init_editor ();
-    editor_open ();
+    if Array.length Sys.argv > 1 then
+        editor_open (Sys.argv.(1));
     loop ();
 ;;
 

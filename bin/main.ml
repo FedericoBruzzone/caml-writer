@@ -3,4 +3,3 @@
 
 let () =
     Camlwriter.main();
-    Printf.printf "Hello, world!\n"
