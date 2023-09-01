@@ -32,6 +32,7 @@ type editor_config = {
     cy          : int;
     erow        : editor_row array;
     numrows     : int;
+    rowoff      : int;
 }
 
 let e : (editor_config option ref) = ref None ;;
@@ -90,6 +91,12 @@ let get_erow_size (i : int) =
     | Some config -> config.erow.(i).size
 ;;
 
+let get_rowoff () =
+    match !e with
+    | None -> assert false
+    | Some config -> config.rowoff
+;;
+
 (* === Terminal === *)
 let die (s : string) =
     output_string stdout "\x1b[2J";  (* Clear screen *)
@@ -127,6 +134,7 @@ let enable_row_mode () : unit =
             size  = 0;
         };
         numrows     = 0;
+        rowoff      = 0;
     };
     at_exit(fun () -> disable_row_mode (get_orig_termio ()));
     let new_termio = { (get_orig_termio ()) with
@@ -210,8 +218,6 @@ let editor_read_key () : int =
 ;;
 
 let get_cursor_position () : (int * int) =
-    (* output_string stdout "\x1b[6n"; *)
-    (* flush stdout; *)
     let buf = Bytes.create 32 in
     let rec get_cursor_position' (count : int) =
         if count >= 31 then
@@ -313,13 +319,25 @@ let ab_free (ab : abuf ref) =
 ;;
 
 (* === Output === *)
+let editor_scroll () =
+    match get_cy () with
+    | _ when (get_cy ()) < (get_numrows ()) ->
+        e := Some { (Option.get !e) with rowoff = get_cy () }
+    | _ when (get_cy ()) >= (get_numrows ()) ->
+        e := Some { (Option.get !e) with rowoff = get_numrows () - 1 }
+    | _ -> ()
+;;
+
 let editor_draw_rows (ab : abuf ref) =
     for i = 0 to get_screenrows () - 1 do
-        let _ = match i with
-        | _ when i >= get_numrows () ->
+        let filerow = i + (get_rowoff ()) in
+        let _ = match filerow with
+        | _ when filerow >= get_numrows () ->
             if get_numrows() = 0 && i = get_screenrows () / 3 then
                 let welcome = "Caml Writer -- version " ^ caml_writer_version in
-                let welcome_len = if String.length welcome > get_screencols () then get_screencols () else String.length welcome in
+                let welcome_len = if String.length welcome > get_screencols ()
+                    then get_screencols ()
+                    else String.length welcome in
                 let padding = (get_screencols () - welcome_len) / 2 in
                 if padding <> 0 then
                     ab_append ab "~" 1;
@@ -329,9 +347,11 @@ let editor_draw_rows (ab : abuf ref) =
                 ab_append ab welcome welcome_len;
             else
                 ab_append ab "~" 1;
-        | __ when i < get_numrows () ->
-            let len = if get_erow_size i > get_screencols () then get_screencols () else get_erow_size i in
-            ab_append ab (get_erow_chars i) len;
+        | __ when filerow < get_numrows () ->
+            let len = if get_erow_size filerow > get_screencols ()
+                then get_screencols ()
+                else get_erow_size filerow in
+            ab_append ab (get_erow_chars filerow) len;
         | _ -> assert false
         in
         ab_append ab "\x1b[K" 3;
@@ -341,6 +361,7 @@ let editor_draw_rows (ab : abuf ref) =
 ;;
 
 let editor_refresh_screen () =
+    editor_scroll ();
     let ab : abuf ref = ref abuf_init in
     ab_append ab "\x1b[?25l" 6; (* Hide cursor *)
     ab_append ab "\x1b[H" 3;    (* Reposition cursor *)
@@ -368,7 +389,7 @@ let editor_move_cursor c  =
         if (get_cy ()) <> 0 then
             e := Some { (Option.get !e) with cy = (get_cy ()) - 1 }
     | _ when c = arrow_down ->
-        if (get_cy ()) < (get_screenrows ()) - 1 then
+        if (get_cy ()) < (get_screenrows ()) then
             e := Some { (Option.get !e) with cy = (get_cy ()) + 1 }
     | _ -> ()
 ;;
@@ -418,6 +439,7 @@ let init_editor () : unit =
             size  = 0;
         };
         numrows     = 0;
+        rowoff      = 0;
     }
 ;;
 
