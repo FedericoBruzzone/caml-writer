@@ -276,9 +276,9 @@ let ab_free (ab : abuf ref) =
 
 (* === Output === *)
 let editor_draw_rows (ab : abuf ref) =
-    for i = 0 to get_screenrows () do
-        match i with
-        | _ when i >= get_numrows() ->
+    for i = 0 to get_screenrows () - 1 do
+        let _ = match i with
+        | _ when i >= get_numrows () ->
             if i = get_screenrows () / 3 then
                 let welcome = "Caml Writer -- version " ^ caml_writer_version in
                 let welcome_len = if String.length welcome > get_screencols () then get_screencols () else String.length welcome in
@@ -291,12 +291,14 @@ let editor_draw_rows (ab : abuf ref) =
                 ab_append ab welcome welcome_len;
             else
                 ab_append ab "~" 1;
-                ab_append ab "\x1b[K" 3;
-                if i < get_screenrows () then
-                    ab_append ab "\r\n" 2
-        | _ ->
+        | __ when i < get_numrows () ->
             let len = if get_erow_size () > get_screencols () then get_screencols () else get_erow_size () in
             ab_append ab (get_erow_chars ()) len;
+        | _ -> assert false
+        in
+        ab_append ab "\x1b[K" 3;
+        if i < get_screenrows () - 1 then
+            ab_append ab "\r\n" 2
     done
 ;;
 
@@ -311,7 +313,6 @@ let editor_refresh_screen () =
 
     (* ab_append ab "\x1b[H" 3;    (* Reposition cursor *) *)
     ab_append ab "\x1b[?25h" 6; (* Show cursor *)
-
     output_string stdout !ab.b;
     ab_free ab;
 ;;
@@ -383,11 +384,13 @@ let init_editor () : unit =
 ;;
 
 let loop () : unit =
-    while true do
+    let rec loop' () =
         flush stdout;
         editor_refresh_screen();
         editor_process_keypress ();
-    done
+        loop' ()
+    in
+    loop' ();
 ;;
 
 let main () =
