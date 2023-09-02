@@ -266,19 +266,6 @@ let editor_append_row (s : string) (len : int) =
         numrows = (get_numrows ()) + 1;
     }
 
-(* File i/o *)
-(* let editor_open () = *)
-(*     let line = "Hello, world!" in *)
-(*     let line_len = 13 in *)
-(*     e := Some { (Option.get !e) with *)
-(*         erow = { *)
-(*             chars = line ^ "\000"; *)
-(*             size  = line_len; *)
-(*         }; *)
-(*         numrows = 1; *)
-(*     } *)
-(* ;; *)
-
 let editor_open (file_name : string) =
     let fp =
         try
@@ -424,7 +411,7 @@ let editor_move_cursor c  =
         if (get_cy ()) <> 0 then
             e := Some { (Option.get !e) with cy = (get_cy ()) - 1 }
     | _ when c = arrow_down ->
-        if (get_cy ()) < (get_screenrows ()) then
+        if (get_cy ()) < (get_numrows ()) then
             e := Some { (Option.get !e) with cy = (get_cy ()) + 1 }
     | _ -> ()
     in
