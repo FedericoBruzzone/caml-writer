@@ -20,9 +20,16 @@ let page_down   = 1008 ;;
 
 (* === Data === *)
 type editor_row = {
-    chars : string;
-    size  : int;
+    chars  : string;
+    size   : int;
+    render : string;
+    rsize  : int;
 }
+
+let render_free (row : editor_row) : editor_row =
+    let new_row = { row with render = "" }
+    in new_row
+;;
 
 type editor_config = {
     orig_termio : Unix.terminal_io;
@@ -92,6 +99,19 @@ let get_erow_size (i : int) : int =
     | Some config -> config.erow.(i).size
 ;;
 
+let get_erow_render (i : int) : string =
+    match !e with
+    | None -> assert false
+    | Some config -> config.erow.(i).render
+;;
+
+let get_erow_rsize (i : int) : int =
+    match !e with
+    | None -> assert false
+    | Some config -> config.erow.(i).rsize
+;;
+
+
 let get_rowoff () : int =
     match !e with
     | None -> assert false
@@ -139,6 +159,8 @@ let enable_row_mode () : unit =
         erow        = Array.make 0 {
             chars = "";
             size  = 0;
+            render = "";
+            rsize = 0;
         };
         numrows     = 0;
         rowoff      = 0;
@@ -255,16 +277,28 @@ let get_window_size () : (int * int) =
 ;;
 
 (* Row operations *)
+let editor_update_row (row : editor_row) =
+    let rf_row = render_free (row) in
+    let updated_row = { rf_row with
+        render = row.chars;
+        rsize = row.size;
+    }
+    in updated_row
+;;
+
 let editor_append_row (s : string) (len : int) =
     let row = {
         chars = s;
         size  = len;
-    }
-    in
+        render = "";
+        rsize = 0;
+    } in
+    let updated_row = editor_update_row (row) in
     e := Some { (Option.get !e) with
-        erow = Array.append (get_erow ()) [| row |];
+        erow = Array.append (get_erow ()) [| updated_row |];
         numrows = (get_numrows ()) + 1;
     }
+;;
 
 let editor_open (file_name : string) =
     let fp =
@@ -349,16 +383,16 @@ let editor_draw_rows (ab : abuf ref) =
             else
                 ab_append ab "~" 1;
         | __ when filerow < get_numrows () ->
-            let len = match get_erow_size filerow - get_coloff () with
-                      | _ when get_erow_size filerow - get_coloff () > get_screencols () ->
+            let len = match get_erow_rsize filerow - get_coloff () with
+                      | _ when get_erow_rsize filerow - get_coloff () > get_screencols () ->
                           get_screencols ()
-                      | _ when get_erow_size filerow - get_coloff () < 0 ->
+                      | _ when get_erow_rsize filerow - get_coloff () < 0 ->
                             0
-                      | _ -> get_erow_size filerow - get_coloff ()
+                      | _ -> get_erow_rsize filerow - get_coloff ()
             in
             let sub_row =
                 try
-                    (String.sub (get_erow_chars filerow) (get_coloff ()) len)
+                    (String.sub (get_erow_render filerow) (get_coloff ()) len)
                 with
                     Invalid_argument _ -> ""
             in
@@ -402,7 +436,7 @@ let editor_move_cursor c  =
     | _ when c = arrow_right ->
         if row <> "" && (get_cx ()) < (String.length row) then
             e := Some { (Option.get !e) with cx = (get_cx ()) + 1 }
-        else if (get_cy ()) < (get_numrows ()) then
+        else if (get_cy ()) < (get_numrows () - 1) then
             e := Some { (Option.get !e) with
                 cy = (get_cy ()) + 1;
                 cx = 0;
@@ -411,7 +445,7 @@ let editor_move_cursor c  =
         if (get_cy ()) <> 0 then
             e := Some { (Option.get !e) with cy = (get_cy ()) - 1 }
     | _ when c = arrow_down ->
-        if (get_cy ()) < (get_numrows ()) then
+        if (get_cy ()) < (get_numrows () - 1) then
             e := Some { (Option.get !e) with cy = (get_cy ()) + 1 }
     | _ -> ()
     in
@@ -462,8 +496,10 @@ let init_editor () : unit =
         cx          = 0;
         cy          = 0;
         erow        = Array.make 0 {
-            chars = "";
-            size  = 0;
+            chars  = "";
+            size   = 0;
+            render = "";
+            rsize  = 0;
         };
         numrows     = 0;
         rowoff      = 0;
