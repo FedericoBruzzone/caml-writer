@@ -3,6 +3,9 @@ open Caml_writer
 
 (* === Utils === *)
 let caml_writer_version = "0.0.1" ;;
+let caml_writer_tab_stop = 8 ;;
+
+(* === Constants === *)
 
 let is_control_char (* iscntrl() *) (c : int) : bool = c < 32 || c = 127 ;;
 
@@ -41,6 +44,7 @@ type editor_config = {
     numrows     : int;
     rowoff      : int;
     coloff      : int;
+    rx          : int;
 }
 
 let e : (editor_config option ref) = ref None ;;
@@ -76,7 +80,7 @@ let get_cy () : int =
 ;;
 
 let get_numrows () : int =
-        match !e with
+    match !e with
     | None -> assert false
     | Some config -> config.numrows
 ;;
@@ -85,6 +89,12 @@ let get_erow () : editor_row array =
     match !e with
     | None -> assert false
     | Some config -> config.erow
+;;
+
+let get_erow_at (i : int) : editor_row =
+    match !e with
+    | None -> assert false
+    | Some config -> config.erow.(i)
 ;;
 
 let get_erow_chars (i : int) : string =
@@ -111,7 +121,6 @@ let get_erow_rsize (i : int) : int =
     | Some config -> config.erow.(i).rsize
 ;;
 
-
 let get_rowoff () : int =
     match !e with
     | None -> assert false
@@ -122,6 +131,12 @@ let get_coloff () : int =
     match !e with
     | None -> assert false
     | Some config -> config.coloff
+;;
+
+let get_rx () : int =
+    match !e with
+    | None -> assert false
+    | Some config -> config.rx
 ;;
 
 (* === Terminal === *)
@@ -165,6 +180,7 @@ let enable_row_mode () : unit =
         numrows     = 0;
         rowoff      = 0;
         coloff      = 0;
+        rx          = 0;
     };
     at_exit(fun () -> disable_row_mode (get_orig_termio ()));
     let new_termio = { (get_orig_termio ()) with
@@ -277,6 +293,18 @@ let get_window_size () : (int * int) =
 ;;
 
 (* Row operations *)
+let editor_row_cx_to_rx(row : editor_row) (cx : int) : int =
+    let rec editor_row_cx_to_rx' row index cx rx =
+        if index = cx then
+            rx
+        else
+            match row.chars.[index] with
+            | '\t' -> editor_row_cx_to_rx' row (index + 1) cx (rx + (caml_writer_tab_stop - (rx mod caml_writer_tab_stop)))
+            | _ -> editor_row_cx_to_rx' row (index + 1) cx (rx + 1)
+    in
+    editor_row_cx_to_rx' row 0 cx 0
+;;
+
 let editor_update_row (row : editor_row) =
     let tabs = ref 0 in
     for i = 0 to String.length row.chars - 1 do
@@ -290,14 +318,14 @@ let editor_update_row (row : editor_row) =
                 acc
             else
                 match row.chars.[index] with
-                        | '\t' -> new_render' row (index + 1) (acc ^ "        ")
+                        | '\t' -> new_render' row (index + 1) (acc ^ (String.make (caml_writer_tab_stop - (index mod caml_writer_tab_stop)) ' '))
                         | _ -> new_render' row (index + 1) (acc ^ (String.make 1 row.chars.[index]))
     in
         new_render' rf_row 0 ""
         in
     let updated_row = { rf_row with
         render = new_render;
-        rsize = row.size + 7 * !tabs;
+        rsize = row.size + (!tabs * (caml_writer_tab_stop - 1));
     }
     in updated_row
 ;;
@@ -374,17 +402,21 @@ let ab_free (ab : abuf ref) =
 
 (* === Output === *)
 let editor_scroll () =
+    e := Some { (Option.get !e) with
+        rx = editor_row_cx_to_rx (get_erow_at (get_cy ())) (get_cx ());
+    };
     match get_cy () with
     | _ when (get_cy ()) < (get_rowoff ()) ->
         e := Some { (Option.get !e) with rowoff = get_cy () }
+        (* e := Some { (Option.get !e) with rx = editor_row_cx_to_rx (get_erow_at (get_cy ())) (get_cx ()) } *)
     | _ when (get_cy ()) >= (get_rowoff ()) + (get_screenrows ()) ->
         e := Some { (Option.get !e) with rowoff = (get_cy ()) - (get_screenrows ()) + 1 }
     | _ -> ();
-    match get_cx () with
-    | _ when (get_cx ()) < (get_coloff ()) ->
-        e := Some { (Option.get !e) with coloff = get_cx () }
-    | _ when (get_cx ()) >= (get_coloff ()) + (get_screencols ()) ->
-        e := Some { (Option.get !e) with coloff = (get_cx ()) - (get_screencols ()) + 1 }
+    match get_rx () with
+    | _ when (get_rx ()) < (get_coloff ()) ->
+        e := Some { (Option.get !e) with coloff = get_rx () }
+    | _ when (get_rx ()) >= (get_coloff ()) + (get_screencols ()) ->
+        e := Some { (Option.get !e) with coloff = (get_rx ()) - (get_screencols ()) + 1 }
     | _ -> ()
 ;;
 
@@ -437,7 +469,7 @@ let editor_refresh_screen () =
     ab_append ab "\x1b[H" 3;    (* Reposition cursor *)
     editor_draw_rows(ab);
 
-    let buf = Printf.sprintf "\x1b[%d;%dH" (get_cy () - get_rowoff() + 1) (get_cx () - get_coloff() + 1) in
+    let buf = Printf.sprintf "\x1b[%d;%dH" (get_cy () - get_rowoff() + 1) (get_rx () - get_coloff() + 1) in
     ab_append ab buf (String.length buf);
 
     (* ab_append ab "\x1b[H" 3;    (* Reposition cursor *) *)
@@ -529,6 +561,7 @@ let init_editor () : unit =
         numrows     = 0;
         rowoff      = 0;
         coloff      = 0;
+        rx          = 0;
     }
 ;;
 
