@@ -35,16 +35,19 @@ let render_free (row : editor_row) : editor_row =
 ;;
 
 type editor_config = {
-    orig_termio : Unix.terminal_io;
-    screenrows  : int;
-    screencols  : int;
-    cx          : int;
-    cy          : int;
-    erow        : editor_row array;
-    numrows     : int;
-    rowoff      : int;
-    coloff      : int;
-    rx          : int;
+    orig_termio    : Unix.terminal_io;
+    screenrows     : int;
+    screencols     : int;
+    cx             : int;
+    cy             : int;
+    erow           : editor_row array;
+    numrows        : int;
+    rowoff         : int;
+    coloff         : int;
+    rx             : int;
+    filename       : string;
+    statusmsg      : string;
+    statusmsg_time : float;
 }
 
 let e : (editor_config option ref) = ref None ;;
@@ -94,19 +97,31 @@ let get_erow () : editor_row array =
 let get_erow_at (i : int) : editor_row =
     match !e with
     | None -> assert false
-    | Some config -> config.erow.(i)
+    | Some config ->
+        if i >= config.numrows then
+            { chars = ""; size = 0; render = ""; rsize = 0 }
+        else
+            config.erow.(i)
 ;;
 
 let get_erow_chars (i : int) : string =
     match !e with
     | None -> assert false
-    | Some config -> config.erow.(i).chars
+    | Some config ->
+        if i >= config.numrows then
+            ""
+        else
+            config.erow.(i).chars
 ;;
 
 let get_erow_size (i : int) : int =
     match !e with
     | None -> assert false
-    | Some config -> config.erow.(i).size
+    | Some config ->
+        if i >= config.numrows then
+            0
+        else
+            config.erow.(i).size
 ;;
 
 let get_erow_render (i : int) : string =
@@ -137,6 +152,29 @@ let get_rx () : int =
     match !e with
     | None -> assert false
     | Some config -> config.rx
+;;
+
+let get_filename () : string =
+    match !e with
+    | None -> assert false
+    | Some config -> config.filename
+;;
+
+let get_statusmsg () : string =
+    match !e with
+    | None -> assert false
+    | Some config -> config.statusmsg
+;;
+
+let get_statusmsg_time () : float =
+    match !e with
+    | None -> assert false
+    | Some config -> config.statusmsg_time
+;;
+
+let filename_free (config : editor_config) : editor_config =
+    let new_config = { config with filename = "" }
+    in new_config
 ;;
 
 (* === Terminal === *)
@@ -181,6 +219,9 @@ let enable_row_mode () : unit =
         rowoff      = 0;
         coloff      = 0;
         rx          = 0;
+        filename    = "";
+        statusmsg   = "";
+        statusmsg_time = 0.0;
     };
     at_exit(fun () -> disable_row_mode (get_orig_termio ()));
     let new_termio = { (get_orig_termio ()) with
@@ -354,6 +395,8 @@ let editor_append_row (s : string) (len : int) =
 ;;
 
 let editor_open (file_name : string) =
+    e := Some (filename_free (Option.get !e));
+    e := Some { (Option.get !e) with filename = file_name };
     let fp =
         try
             open_in file_name
@@ -408,7 +451,6 @@ let editor_scroll () =
     match get_cy () with
     | _ when (get_cy ()) < (get_rowoff ()) ->
         e := Some { (Option.get !e) with rowoff = get_cy () }
-        (* e := Some { (Option.get !e) with rx = editor_row_cx_to_rx (get_erow_at (get_cy ())) (get_cx ()) } *)
     | _ when (get_cy ()) >= (get_rowoff ()) + (get_screenrows ()) ->
         e := Some { (Option.get !e) with rowoff = (get_cy ()) - (get_screenrows ()) + 1 }
     | _ -> ();
@@ -457,9 +499,37 @@ let editor_draw_rows (ab : abuf ref) =
         | _ -> assert false
         in
         ab_append ab "\x1b[K" 3;
-        if i < get_screenrows () - 1 then
-            ab_append ab "\r\n" 2
+        (* if i < get_screenrows () - 1 then *)
+        ab_append ab "\r\n" 2
     done
+;;
+
+let editor_draw_status_bar (ab : abuf ref) =
+    ab_append ab "\x1b[7m" 4;
+    let status =
+        let lines = Printf.sprintf "%d lines" (get_numrows ()) in
+        let filename = if (get_filename ()) = "" then "[No Name]" else (get_filename ()) in
+        let rstatus = Printf.sprintf "%d/%d - %d/%d" (get_cy () + 1) (get_numrows ()) (get_cx () + 1) (get_erow_size (get_cy ()) + 1) in
+        let len = String.length lines + String.length filename + String.length rstatus + 1 in
+        if len > get_screencols () then
+            lines ^ " " ^ (String.sub filename 0 (get_screencols () - String.length lines - 1))
+        else
+            lines ^ " " ^ filename ^ (String.make (get_screencols () - len) ' ') ^ rstatus
+    in
+    ab_append ab status (String.length status);
+    ab_append ab "\x1b[m" 3;
+    ab_append ab "\r\n" 2
+;;
+
+let editor_draw_message_bar (ab : abuf ref) =
+    ab_append ab "\x1b[K" 3;
+    ab_append ab "\x1b[4m" 4;
+    let msglen = String.length (get_statusmsg ()) in
+    if msglen > get_screencols () then
+        ab_append ab (String.sub (get_statusmsg ()) 0 (get_screencols ())) (get_screencols ())
+    else
+        ab_append ab (get_statusmsg ()) msglen;
+    ab_append ab "\x1b[m" 3;
 ;;
 
 let editor_refresh_screen () =
@@ -467,7 +537,10 @@ let editor_refresh_screen () =
     let ab : abuf ref = ref abuf_init in
     ab_append ab "\x1b[?25l" 6; (* Hide cursor *)
     ab_append ab "\x1b[H" 3;    (* Reposition cursor *)
+
     editor_draw_rows(ab);
+    editor_draw_status_bar(ab);
+    editor_draw_message_bar(ab);
 
     let buf = Printf.sprintf "\x1b[%d;%dH" (get_cy () - get_rowoff() + 1) (get_rx () - get_coloff() + 1) in
     ab_append ab buf (String.length buf);
@@ -478,6 +551,12 @@ let editor_refresh_screen () =
     ab_free ab;
 ;;
 
+let editor_set_status_message (statusmsg : string) =
+    e := Some { (Option.get !e) with
+        statusmsg = statusmsg;
+        statusmsg_time = Unix.time ()
+    };
+;;
 (* === Input === *)
 let editor_move_cursor c  =
     let row = if (get_cy ()) >= (get_numrows ()) then "" else (get_erow_chars (get_cy ())) in
@@ -527,13 +606,19 @@ let editor_process_keypress () =
         | _ when c = home_key ->
             e := Some { (Option.get !e) with cx = 0 }
         | _ when c = end_key ->
-            e := Some { (Option.get !e) with cx = (get_screencols ()) - 1 }
+            if get_cy () < get_numrows () then
+                e := Some { (Option.get !e) with cx = (get_erow_size (get_cy ())) }
         | _ when c = page_up ->
+            e := Some { (Option.get !e) with cy = (get_rowoff ()) };
             let times = get_screenrows () in
             for _ = 0 to times do
                 editor_move_cursor arrow_up
             done
         | _ when c = page_down ->
+            if get_rowoff () + get_screenrows () - 1 < get_numrows () then
+                e := Some { (Option.get !e) with cy = (get_rowoff ()) + (get_screenrows ()) - 1 }
+            else
+                e := Some { (Option.get !e) with cy = get_numrows () };
             let times = get_screenrows () in
             for _ = 0 to times do
                 editor_move_cursor arrow_down
@@ -548,7 +633,7 @@ let init_editor () : unit =
     let (columns, rows) = get_window_size() in
     e := Some {
         orig_termio = get_orig_termio ();
-        screenrows  = rows;
+        screenrows  = rows - 2;
         screencols  = columns;
         cx          = 0;
         cy          = 0;
@@ -562,6 +647,9 @@ let init_editor () : unit =
         rowoff      = 0;
         coloff      = 0;
         rx          = 0;
+        filename    = "";
+        statusmsg   = "";
+        statusmsg_time = 0.0;
     }
 ;;
 
@@ -573,6 +661,7 @@ let loop () : unit =
         editor_process_keypress ();
         loop' ()
     in
+    editor_set_status_message "HELP: Ctrl-Q = quit";
     loop' ();
 ;;
 

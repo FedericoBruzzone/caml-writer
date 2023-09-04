@@ -16,7 +16,7 @@ build:
 
 # --profile release
 run:
-	$(DUNE) exec $(CAML_WRITER) $(ARGS)
+	$(DUNE) exec $(CAML_WRITER) $(if $(ARGS),$(ARGS),)
 
 clean:
 	$(DUNE) clean
