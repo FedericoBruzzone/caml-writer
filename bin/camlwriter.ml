@@ -278,13 +278,38 @@ let get_window_size () : (int * int) =
 
 (* Row operations *)
 let editor_update_row (row : editor_row) =
+    let tabs = ref 0 in
+    for i = 0 to String.length row.chars - 1 do
+        if row.chars.[i] = '\t' then
+            tabs := !tabs + 1
+    done;
     let rf_row = render_free (row) in
+    let new_render =
+        let rec new_render' row index acc =
+            if index = String.length row.chars then
+                acc
+            else
+                match row.chars.[index] with
+                        | '\t' -> new_render' row (index + 1) (acc ^ "        ")
+                        | _ -> new_render' row (index + 1) (acc ^ (String.make 1 row.chars.[index]))
+    in
+        new_render' rf_row 0 ""
+        in
     let updated_row = { rf_row with
-        render = row.chars;
-        rsize = row.size;
+        render = new_render;
+        rsize = row.size + 7 * !tabs;
     }
     in updated_row
 ;;
+
+(* let editor_update_row (row : editor_row) = *)
+(*     let rf_row = render_free (row) in *)
+(*     let updated_row = { rf_row with *)
+(*         render = row.chars; *)
+(*         rsize = row.size; *)
+(*     } *)
+(*     in updated_row *)
+(* ;; *)
 
 let editor_append_row (s : string) (len : int) =
     let row = {
@@ -510,6 +535,7 @@ let init_editor () : unit =
 let loop () : unit =
     let rec loop' () =
         flush stdout;
+        (* update rows and columns *)
         editor_refresh_screen();
         editor_process_keypress ();
         loop' ()
