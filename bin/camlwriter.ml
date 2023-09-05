@@ -161,16 +161,17 @@ let enable_row_mode () : unit =
                     (Unix.error_message err) func arg)
 ;;
 
-let editor_read_key () : int =
+let editor_read_key () : int option =
     let c =
         try
-            input_byte stdin
+            Some ( input_byte stdin )
         with
             | Sys_blocked_io -> die "input_byte"
             | Sys_error _ -> die "input_byte"
-            | End_of_file -> 0
+            | End_of_file -> None
     in
-    if Char.chr c = '\x1b' then
+    if c = Some (Char.code '\x1b') then
+    (* if Char.chr c = '\x1b' then *)
         let c' = input_byte stdin in
         let c'' = input_byte stdin in
         if Char.chr c' = '[' then
@@ -178,32 +179,32 @@ let editor_read_key () : int =
                 let c''' = input_byte stdin in
                 if Char.chr c''' = '~' then
                     match Char.chr c'' with
-                    | '1' -> home_key
-                    | '3' -> del_key
-                    | '4' -> end_key
-                    | '5' -> page_up
-                    | '6' -> page_down
-                    | '7' -> home_key
-                    | '8' -> end_key
-                    | _ -> Char.code '\x1b'
+                    | '1' -> Some home_key
+                    | '3' -> Some del_key
+                    | '4' -> Some end_key
+                    | '5' -> Some page_up
+                    | '6' -> Some page_down
+                    | '7' -> Some home_key
+                    | '8' -> Some end_key
+                    | _ -> Some ( Char.code '\x1b' )
                 else
-                    Char.code '\x1b'
+                    Some ( Char.code '\x1b' )
             else
                 match Char.chr c'' with
-                | 'A' -> arrow_up
-                | 'B' -> arrow_down
-                | 'C' -> arrow_right
-                | 'D' -> arrow_left
-                | 'H' -> home_key
-                | 'F' -> end_key
-                | _ -> Char.code '\x1b'
+                | 'A' -> Some arrow_up
+                | 'B' -> Some arrow_down
+                | 'C' -> Some arrow_right
+                | 'D' -> Some arrow_left
+                | 'H' -> Some home_key
+                | 'F' -> Some end_key
+                | _   -> Some ( Char.code '\x1b' )
         else if Char.chr c' = 'O' then
                 match Char.chr c'' with
-                | 'H' -> home_key
-                | 'F' -> end_key
-                | _ -> Char.code '\x1b'
+                | 'H' -> Some home_key
+                | 'F' -> Some end_key
+                | _   -> Some ( Char.code '\x1b' )
         else
-            Char.code '\x1b'
+            Some ( Char.code '\x1b' )
     else
        c
 ;;
@@ -272,12 +273,7 @@ let editor_update_row (row : editor_row) =
         render = new_render;
         rsize = row.size + (!tabs * (caml_writer_tab_stop - 1));
     }
-    (* in updated_row *)
-    in
-    e := Some { (Option.get !e) with
-        erow = Array.append (get_erow ()) [| updated_row |];
-        numrows = (get_numrows ()) + 1;
-    }
+    in updated_row
 ;;
 
 let editor_append_row (s : string) (len : int) =
@@ -287,27 +283,38 @@ let editor_append_row (s : string) (len : int) =
         render = "";
         rsize = 0;
     } in
-    editor_update_row (row)
+    let updated_row = editor_update_row (row) in
+    e := Some { (Option.get !e) with
+        erow = Array.append (get_erow ()) [| updated_row |];
+        numrows = (get_numrows ()) + 1;
+    }
 ;;
 
 let editor_row_insert_char (row : editor_row) (at : int) (c : char) =
     let at = if at < 0 || at > row.size then row.size else at in
-    let row' = {
+    let new_row = {
         chars = (String.sub row.chars 0 at) ^ (String.make 1 c) ^ (String.sub row.chars at (String.length row.chars - at));
         size  = row.size + 1;
         render = "";
         rsize = 0;
     } in
-    editor_update_row (row')
+    let updated_row = editor_update_row (new_row) in
+    updated_row
 ;;
 
 (* === Editor operations === *)
 let editor_insert_char (c : char) =
-    let _ = if get_cy () == get_numrows () then
-        editor_append_row "" 0
-    in
-    editor_row_insert_char (get_erow_at (get_cy ())) (get_cx ()) c;
-    e := Some { (Option.get !e) with cx = (get_cx ()) + 1; };
+    let cy = get_cy () in
+    let cx = get_cx () in
+    let erow = get_erow_at cy in
+    let new_erow = editor_row_insert_char erow cx c in
+    let updated_erow_array = Array.copy (get_erow ()) in
+    updated_erow_array.(cy) <- new_erow;
+    e := Some { (Option.get !e) with
+        erow = updated_erow_array;
+        numrows = (get_numrows ()) + 1;
+        cx = (get_cx ()) + 1;
+    };
 ;;
 
 (* === File i/o === *)
@@ -540,11 +547,11 @@ let editor_process_keypress () =
             for _ = 0 to times do
                 editor_move_cursor arrow_down
             done
-        | _ -> ()
-            (* editor_insert_char (Char.chr c); *)
-            (* Printf.printf "%d\r\n" c; *)
+        | _ -> editor_insert_char (Char.chr c);
     in
-    editor_process_keypress' c;
+    match c with
+    | None -> ()
+    | Some c -> editor_process_keypress' c;
 ;;
 
 (* === Init === *)
