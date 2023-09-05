@@ -1,6 +1,9 @@
 (executable
  (public_name caml_writer)
  (name main)
- (libraries caml_writer 
-            unix)
-)
+ (libraries caml_writer
+            unix))
+(env
+ (dev
+  ; (flags (:standard -w -27))))
+  (flags(:standard -warn-error -a))))

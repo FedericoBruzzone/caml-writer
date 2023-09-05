@@ -52,29 +52,29 @@ type editor_config = {
 
 let e : (editor_config option ref) = ref None ;;
 
-let ( >>= ) (e : editor_config option) (f : editor_config -> 'a) : 'a =
+let ( >>> ) (e : editor_config option) (f : editor_config -> 'a) : 'a =
     match e with
     | None -> assert false
     | Some config -> f config
 ;;
 
-let get_orig_termio () : Unix.terminal_io = !e >>= (fun config -> config.orig_termio) ;;
-let get_screenrows () : int               = !e >>= (fun config -> config.screenrows) ;;
-let get_screencols () : int               = !e >>= (fun config -> config.screencols) ;;
-let get_cx () : int                       = !e >>= (fun config -> config.cx) ;;
-let get_cy () : int                       = !e >>= (fun config -> config.cy) ;;
-let get_numrows () : int                  = !e >>= (fun config -> config.numrows) ;;
-let get_erow () : editor_row array        = !e >>= (fun config -> config.erow) ;;
-let get_erow_at (i : int) : editor_row    = !e >>= (fun config -> config.erow.(i)) ;;
-let get_erow_chars (i : int) : string     = !e >>= (fun config -> config.erow.(i).chars) ;;
-let get_erow_size (i : int) : int         = !e >>= (fun config -> config.erow.(i).size) ;;
-let get_erow_render (i : int) : string    = !e >>= (fun config -> config.erow.(i).render) ;;
-let get_erow_rsize (i : int) : int        = !e >>= (fun config -> config.erow.(i).rsize) ;;
-let get_rowoff () : int                   = !e >>= (fun config -> config.rowoff) ;;
-let get_coloff () : int                   = !e >>= (fun config -> config.coloff) ;;
-let get_rx () : int                       = !e >>= (fun config -> config.rx) ;;
-let get_filename () : string              = !e >>= (fun config -> config.filename) ;;
-let get_statusmsg () : string             = !e >>= (fun config -> config.statusmsg) ;;
+let get_orig_termio () : Unix.terminal_io = !e >>> (fun config -> config.orig_termio) ;;
+let get_screenrows () : int               = !e >>> (fun config -> config.screenrows) ;;
+let get_screencols () : int               = !e >>> (fun config -> config.screencols) ;;
+let get_cx () : int                       = !e >>> (fun config -> config.cx) ;;
+let get_cy () : int                       = !e >>> (fun config -> config.cy) ;;
+let get_numrows () : int                  = !e >>> (fun config -> config.numrows) ;;
+let get_erow () : editor_row array        = !e >>> (fun config -> config.erow) ;;
+let get_erow_at (i : int) : editor_row    = !e >>> (fun config -> config.erow.(i)) ;;
+let get_erow_chars (i : int) : string     = !e >>> (fun config -> config.erow.(i).chars) ;;
+let get_erow_size (i : int) : int         = !e >>> (fun config -> config.erow.(i).size) ;;
+let get_erow_render (i : int) : string    = !e >>> (fun config -> config.erow.(i).render) ;;
+let get_erow_rsize (i : int) : int        = !e >>> (fun config -> config.erow.(i).rsize) ;;
+let get_rowoff () : int                   = !e >>> (fun config -> config.rowoff) ;;
+let get_coloff () : int                   = !e >>> (fun config -> config.coloff) ;;
+let get_rx () : int                       = !e >>> (fun config -> config.rx) ;;
+let get_filename () : string              = !e >>> (fun config -> config.filename) ;;
+let get_statusmsg () : string             = !e >>> (fun config -> config.statusmsg) ;;
 
 let filename_free (config : editor_config) : editor_config =
     let new_config = { config with filename = "" }
@@ -168,7 +168,7 @@ let editor_read_key () : int =
         with
             | Sys_blocked_io -> die "input_byte"
             | Sys_error _ -> die "input_byte"
-            | _ -> 0
+            | End_of_file -> 0
     in
     if Char.chr c = '\x1b' then
         let c' = input_byte stdin in
@@ -237,7 +237,7 @@ let get_window_size () : (int * int) =
     | _ -> get_cursor_position();
 ;;
 
-(* Row operations *)
+(* === Row operations === *)
 let editor_row_cx_to_rx(row : editor_row) (cx : int) : int =
     let rec editor_row_cx_to_rx' row index cx rx =
         if index = cx then
@@ -272,17 +272,13 @@ let editor_update_row (row : editor_row) =
         render = new_render;
         rsize = row.size + (!tabs * (caml_writer_tab_stop - 1));
     }
-    in updated_row
+    (* in updated_row *)
+    in
+    e := Some { (Option.get !e) with
+        erow = Array.append (get_erow ()) [| updated_row |];
+        numrows = (get_numrows ()) + 1;
+    }
 ;;
-
-(* let editor_update_row (row : editor_row) = *)
-(*     let rf_row = render_free (row) in *)
-(*     let updated_row = { rf_row with *)
-(*         render = row.chars; *)
-(*         rsize = row.size; *)
-(*     } *)
-(*     in updated_row *)
-(* ;; *)
 
 let editor_append_row (s : string) (len : int) =
     let row = {
@@ -291,13 +287,30 @@ let editor_append_row (s : string) (len : int) =
         render = "";
         rsize = 0;
     } in
-    let updated_row = editor_update_row (row) in
-    e := Some { (Option.get !e) with
-        erow = Array.append (get_erow ()) [| updated_row |];
-        numrows = (get_numrows ()) + 1;
-    }
+    editor_update_row (row)
 ;;
 
+let editor_row_insert_char (row : editor_row) (at : int) (c : char) =
+    let at = if at < 0 || at > row.size then row.size else at in
+    let row' = {
+        chars = (String.sub row.chars 0 at) ^ (String.make 1 c) ^ (String.sub row.chars at (String.length row.chars - at));
+        size  = row.size + 1;
+        render = "";
+        rsize = 0;
+    } in
+    editor_update_row (row')
+;;
+
+(* === Editor operations === *)
+let editor_insert_char (c : char) =
+    let _ = if get_cy () == get_numrows () then
+        editor_append_row "" 0
+    in
+    editor_row_insert_char (get_erow_at (get_cy ())) (get_cx ()) c;
+    e := Some { (Option.get !e) with cx = (get_cx ()) + 1; };
+;;
+
+(* === File i/o === *)
 let editor_open (file_name : string) =
     e := Some (filename_free (Option.get !e));
     e := Some { (Option.get !e) with filename = file_name };
@@ -528,6 +541,8 @@ let editor_process_keypress () =
                 editor_move_cursor arrow_down
             done
         | _ -> ()
+            (* editor_insert_char (Char.chr c); *)
+            (* Printf.printf "%d\r\n" c; *)
     in
     editor_process_keypress' c;
 ;;
