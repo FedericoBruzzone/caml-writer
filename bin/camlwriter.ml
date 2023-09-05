@@ -11,15 +11,16 @@ let is_control_char (* iscntrl() *) (c : int) : bool = c < 32 || c = 127 ;;
 
 let ctrl_key (c : char) = (Char.code c) land 0x1f ;;
 
-let arrow_left  = 1000 ;;
-let arrow_right = 1001 ;;
-let arrow_up    = 1002 ;;
-let arrow_down  = 1003 ;;
-let del_key     = 1004 ;;
-let home_key    = 1005 ;;
-let end_key     = 1006 ;;
-let page_up     = 1007 ;;
-let page_down   = 1008 ;;
+let backspace_key = 127 ;;
+let arrow_left    = 1000 ;;
+let arrow_right   = 1001 ;;
+let arrow_up      = 1002 ;;
+let arrow_down    = 1003 ;;
+let del_key       = 1004 ;;
+let home_key      = 1005 ;;
+let end_key       = 1006 ;;
+let page_up       = 1007 ;;
+let page_down     = 1008 ;;
 
 (* === Data === *)
 type editor_row = {
@@ -52,10 +53,10 @@ type editor_config = {
 
 let e : (editor_config option ref) = ref None ;;
 
-let ( >>> ) (e : editor_config option) (f : editor_config -> 'a) : 'a =
+let ( >>> ) (e : 'a option) (f : 'a -> 'b) : 'b =
     match e with
-    | None -> assert false
-    | Some config -> f config
+    | None   -> assert false
+    | Some x -> f x
 ;;
 
 let get_orig_termio () : Unix.terminal_io = !e >>> (fun config -> config.orig_termio) ;;
@@ -79,6 +80,13 @@ let get_statusmsg () : string             = !e >>> (fun config -> config.statusm
 let filename_free (config : editor_config) : editor_config =
     let new_config = { config with filename = "" }
     in new_config
+;;
+
+let editor_set_status_message (statusmsg : string) =
+    e := Some { (Option.get !e) with
+        statusmsg = statusmsg;
+        statusmsg_time = Unix.time ()
+    };
 ;;
 
 (* === Terminal === *)
@@ -318,6 +326,16 @@ let editor_insert_char (c : char) =
 ;;
 
 (* === File i/o === *)
+let editor_rows_to_string () : string =
+    let rec editor_rows_to_string' (rows : editor_row array) (index : int) (acc : string) =
+        if index = Array.length rows then
+            acc
+        else
+            editor_rows_to_string' rows (index + 1) (acc ^ rows.(index).chars ^ "\n")
+    in
+    editor_rows_to_string' (get_erow ()) 0 ""
+;;
+
 let editor_open (file_name : string) =
     e := Some (filename_free (Option.get !e));
     e := Some { (Option.get !e) with filename = file_name };
@@ -338,6 +356,24 @@ let editor_open (file_name : string) =
     in
     open_file' fp;
     close_in fp
+;;
+
+let editor_save () =
+    let file_name = get_filename () in
+    if file_name = "" then ()
+    else
+        let buf = editor_rows_to_string () in
+        let fp =
+            try
+                Some ( open_out file_name )
+            with
+            | Sys_error err ->
+                editor_set_status_message (Printf.sprintf "Can't save! I/O error: %s" err);
+                None
+        in
+        output_string (Option.get fp) buf;
+        editor_set_status_message (file_name ^ " " ^ (string_of_int (String.length buf)) ^ " bytes written to disk");
+        close_out (Option.get fp)
 ;;
 
 (* === Append buffer === *)
@@ -475,12 +511,6 @@ let editor_refresh_screen () =
     ab_free ab;
 ;;
 
-let editor_set_status_message (statusmsg : string) =
-    e := Some { (Option.get !e) with
-        statusmsg = statusmsg;
-        statusmsg_time = Unix.time ()
-    };
-;;
 (* === Input === *)
 let editor_move_cursor c  =
     let row = if (get_cy ()) >= (get_numrows ()) then "" else (get_erow_chars (get_cy ())) in
@@ -523,12 +553,12 @@ let editor_process_keypress () =
             output_string stdout "\x1b[2J"; (* Clear screen *)
             output_string stdout "\x1b[H";  (* Reposition cursor *)
             exit 0
-        | _ when c = arrow_left -> editor_move_cursor c
-        | _ when c = arrow_right -> editor_move_cursor c
-        | _ when c = arrow_up -> editor_move_cursor c
-        | _ when c = arrow_down -> editor_move_cursor c
-        | _ when c = home_key ->
-            e := Some { (Option.get !e) with cx = 0 }
+        | _ when c = ctrl_key 's' -> editor_save ()
+        | _ when c = arrow_left   -> editor_move_cursor c
+        | _ when c = arrow_right  -> editor_move_cursor c
+        | _ when c = arrow_up     -> editor_move_cursor c
+        | _ when c = arrow_down   -> editor_move_cursor c
+        | _ when c = home_key     -> e := Some { (Option.get !e) with cx = 0 }
         | _ when c = end_key ->
             if get_cy () < get_numrows () then
                 e := Some { (Option.get !e) with cx = (get_erow_size (get_cy ())) }
@@ -547,6 +577,12 @@ let editor_process_keypress () =
             for _ = 0 to times do
                 editor_move_cursor arrow_down
             done
+        | _ when c = Char.code '\r' -> () (* TODO *)
+        | _ when c = backspace_key -> () (* TODO *)
+        | _ when c = ctrl_key 'h' -> () (* TODO *)
+        | _ when c = home_key -> () (* TODO *)
+        | _ when c = ctrl_key 'l' -> ()
+        | _ when c = Char.code '\x1b' -> ()
         | _ -> editor_insert_char (Char.chr c);
     in
     match c with
@@ -587,7 +623,7 @@ let loop () : unit =
         editor_process_keypress ();
         loop' ()
     in
-    editor_set_status_message "HELP: Ctrl-Q = quit";
+    editor_set_status_message "HELP: Ctrl-S = save | Ctrl-Q = quit";
     loop' ();
 ;;
 
