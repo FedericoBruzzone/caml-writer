@@ -52,125 +52,29 @@ type editor_config = {
 
 let e : (editor_config option ref) = ref None ;;
 
-let get_orig_termio () : Unix.terminal_io =
-    match !e with
+let ( >>= ) (e : editor_config option) (f : editor_config -> 'a) : 'a =
+    match e with
     | None -> assert false
-    | Some config -> config.orig_termio
+    | Some config -> f config
 ;;
 
-let get_screenrows () : int =
-    match !e with
-    | None -> assert false
-    | Some config -> config.screenrows
-;;
-
-let get_screencols () : int =
-    match !e with
-    | None -> assert false
-    | Some config -> config.screencols
-;;
-
-let get_cx () : int =
-    match !e with
-    | None -> assert false
-    | Some config -> config.cx
-;;
-
-let get_cy () : int =
-    match !e with
-    | None -> assert false
-    | Some config -> config.cy
-;;
-
-let get_numrows () : int =
-    match !e with
-    | None -> assert false
-    | Some config -> config.numrows
-;;
-
-let get_erow () : editor_row array =
-    match !e with
-    | None -> assert false
-    | Some config -> config.erow
-;;
-
-let get_erow_at (i : int) : editor_row =
-    match !e with
-    | None -> assert false
-    | Some config ->
-        if i >= config.numrows then
-            { chars = ""; size = 0; render = ""; rsize = 0 }
-        else
-            config.erow.(i)
-;;
-
-let get_erow_chars (i : int) : string =
-    match !e with
-    | None -> assert false
-    | Some config ->
-        if i >= config.numrows then
-            ""
-        else
-            config.erow.(i).chars
-;;
-
-let get_erow_size (i : int) : int =
-    match !e with
-    | None -> assert false
-    | Some config ->
-        if i >= config.numrows then
-            0
-        else
-            config.erow.(i).size
-;;
-
-let get_erow_render (i : int) : string =
-    match !e with
-    | None -> assert false
-    | Some config -> config.erow.(i).render
-;;
-
-let get_erow_rsize (i : int) : int =
-    match !e with
-    | None -> assert false
-    | Some config -> config.erow.(i).rsize
-;;
-
-let get_rowoff () : int =
-    match !e with
-    | None -> assert false
-    | Some config -> config.rowoff
-;;
-
-let get_coloff () : int =
-    match !e with
-    | None -> assert false
-    | Some config -> config.coloff
-;;
-
-let get_rx () : int =
-    match !e with
-    | None -> assert false
-    | Some config -> config.rx
-;;
-
-let get_filename () : string =
-    match !e with
-    | None -> assert false
-    | Some config -> config.filename
-;;
-
-let get_statusmsg () : string =
-    match !e with
-    | None -> assert false
-    | Some config -> config.statusmsg
-;;
-
-let get_statusmsg_time () : float =
-    match !e with
-    | None -> assert false
-    | Some config -> config.statusmsg_time
-;;
+let get_orig_termio () : Unix.terminal_io = !e >>= (fun config -> config.orig_termio) ;;
+let get_screenrows () : int               = !e >>= (fun config -> config.screenrows) ;;
+let get_screencols () : int               = !e >>= (fun config -> config.screencols) ;;
+let get_cx () : int                       = !e >>= (fun config -> config.cx) ;;
+let get_cy () : int                       = !e >>= (fun config -> config.cy) ;;
+let get_numrows () : int                  = !e >>= (fun config -> config.numrows) ;;
+let get_erow () : editor_row array        = !e >>= (fun config -> config.erow) ;;
+let get_erow_at (i : int) : editor_row    = !e >>= (fun config -> config.erow.(i)) ;;
+let get_erow_chars (i : int) : string     = !e >>= (fun config -> config.erow.(i).chars) ;;
+let get_erow_size (i : int) : int         = !e >>= (fun config -> config.erow.(i).size) ;;
+let get_erow_render (i : int) : string    = !e >>= (fun config -> config.erow.(i).render) ;;
+let get_erow_rsize (i : int) : int        = !e >>= (fun config -> config.erow.(i).rsize) ;;
+let get_rowoff () : int                   = !e >>= (fun config -> config.rowoff) ;;
+let get_coloff () : int                   = !e >>= (fun config -> config.coloff) ;;
+let get_rx () : int                       = !e >>= (fun config -> config.rx) ;;
+let get_filename () : string              = !e >>= (fun config -> config.filename) ;;
+let get_statusmsg () : string             = !e >>= (fun config -> config.statusmsg) ;;
 
 let filename_free (config : editor_config) : editor_config =
     let new_config = { config with filename = "" }
