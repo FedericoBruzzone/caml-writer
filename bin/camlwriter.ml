@@ -49,6 +49,7 @@ type editor_config = {
     filename       : string;
     statusmsg      : string;
     statusmsg_time : float;
+    dirty          : int;
 }
 
 let e : (editor_config option ref) = ref None ;;
@@ -76,6 +77,8 @@ let get_coloff () : int                   = !e >>> (fun config -> config.coloff)
 let get_rx () : int                       = !e >>> (fun config -> config.rx) ;;
 let get_filename () : string              = !e >>> (fun config -> config.filename) ;;
 let get_statusmsg () : string             = !e >>> (fun config -> config.statusmsg) ;;
+let get_statusmsg_time () : float         = !e >>> (fun config -> config.statusmsg_time) ;;
+let get_dirty () : int                    = !e >>> (fun config -> config.dirty) ;;
 
 let filename_free (config : editor_config) : editor_config =
     let new_config = { config with filename = "" }
@@ -88,6 +91,10 @@ let editor_set_status_message (statusmsg : string) =
         statusmsg_time = Unix.time ()
     };
 ;;
+
+(* Prototypes *)
+
+let editor_set_status_message : (string -> unit) = editor_set_status_message ;;
 
 (* === Terminal === *)
 let die (s : string) =
@@ -134,6 +141,7 @@ let enable_row_mode () : unit =
         filename    = "";
         statusmsg   = "";
         statusmsg_time = 0.0;
+        dirty       = 0;
     };
     at_exit(fun () -> disable_row_mode (get_orig_termio ()));
     let new_termio = { (get_orig_termio ()) with
@@ -295,6 +303,7 @@ let editor_append_row (s : string) (len : int) =
     e := Some { (Option.get !e) with
         erow = Array.append (get_erow ()) [| updated_row |];
         numrows = (get_numrows ()) + 1;
+        dirty = (get_dirty ()) + 1;
     }
 ;;
 
@@ -307,6 +316,7 @@ let editor_row_insert_char (row : editor_row) (at : int) (c : char) =
         rsize = 0;
     } in
     let updated_row = editor_update_row (new_row) in
+    e := Some { (Option.get !e) with dirty = (get_dirty ()) + 1; };
     updated_row
 ;;
 
@@ -355,7 +365,8 @@ let editor_open (file_name : string) =
             End_of_file -> ()
     in
     open_file' fp;
-    close_in fp
+    close_in fp;
+    e := Some { (Option.get !e) with dirty = 0 }
 ;;
 
 let editor_save () =
@@ -372,6 +383,7 @@ let editor_save () =
                 None
         in
         output_string (Option.get fp) buf;
+        e := Some { (Option.get !e) with dirty = 0 };
         editor_set_status_message (file_name ^ " " ^ (string_of_int (String.length buf)) ^ " bytes written to disk");
         close_out (Option.get fp)
 ;;
@@ -469,12 +481,13 @@ let editor_draw_status_bar (ab : abuf ref) =
     let status =
         let lines = Printf.sprintf "%d lines" (get_numrows ()) in
         let filename = if (get_filename ()) = "" then "[No Name]" else (get_filename ()) in
+        let dirty = if (get_dirty ()) <> 0 then "(modified)" else "" in
         let rstatus = Printf.sprintf "%d/%d - %d/%d" (get_cy () + 1) (get_numrows ()) (get_cx () + 1) (get_erow_size (get_cy ()) + 1) in
-        let len = String.length lines + String.length filename + String.length rstatus + 1 in
+        let len = String.length lines + (String.length filename + 1) + (String.length dirty + 1) + String.length rstatus in
         if len > get_screencols () then
             lines ^ " " ^ (String.sub filename 0 (get_screencols () - String.length lines - 1))
         else
-            lines ^ " " ^ filename ^ (String.make (get_screencols () - len) ' ') ^ rstatus
+            lines ^ " " ^ filename ^ " " ^ dirty ^ (String.make (get_screencols () - len) ' ') ^ rstatus
     in
     ab_append ab status (String.length status);
     ab_append ab "\x1b[m" 3;
@@ -612,6 +625,7 @@ let init_editor () : unit =
         filename    = "";
         statusmsg   = "";
         statusmsg_time = 0.0;
+        dirty       = 0;
     }
 ;;
 
