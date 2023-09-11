@@ -587,9 +587,19 @@ let editor_process_keypress () =
     let editor_process_keypress' c =
         match c with
         | _ when c = ctrl_key 'q' ->
-            output_string stdout "\x1b[2J"; (* Clear screen *)
-            output_string stdout "\x1b[H";  (* Reposition cursor *)
-            exit 0;
+                let check_exit = if (get_dirty ()) <> 0 && !quit_times > 0 then (
+                                     editor_set_status_message (Printf.sprintf "WARNING!!! File has unsaved changes. Press Ctrl-Q %d more times to quit." !quit_times);
+                                     decr quit_times;
+                                     true
+                                 ) else
+                                     false
+                in
+                if check_exit then
+                    ()
+                else
+                    (output_string stdout "\x1b[2J";  (* Clear screen *)
+                     output_string stdout "\x1b[H";   (* Reposition cursor *)
+                     exit 0)
         | _ when c = ctrl_key 's' -> editor_save ()
         | _ when c = arrow_left   -> editor_move_cursor c
         | _ when c = arrow_right  -> editor_move_cursor c
@@ -621,8 +631,8 @@ let editor_process_keypress () =
         | _ when c = ctrl_key 'l' -> ()
         | _ when c = Char.code '\x1b' -> ()
         | _ -> editor_insert_char (Char.chr c);
-    in
     quit_times := caml_writer_quit_times;
+    in
     match c with
     | None -> ()
     | Some c -> editor_process_keypress' c;
