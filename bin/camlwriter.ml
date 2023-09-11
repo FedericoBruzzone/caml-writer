@@ -4,8 +4,7 @@ open Caml_writer
 (* === Utils === *)
 let caml_writer_version = "0.0.1" ;;
 let caml_writer_tab_stop = 8 ;;
-
-(* === Constants === *)
+let caml_writer_quit_times = 3 ;;
 
 let is_control_char (* iscntrl() *) (c : int) : bool = c < 32 || c = 127 ;;
 
@@ -54,31 +53,48 @@ type editor_config = {
 
 let e : (editor_config option ref) = ref None ;;
 
-let ( >>> ) (e : 'a option) (f : 'a -> 'b) : 'b =
-    match e with
-    | None   -> assert false
-    | Some x -> f x
-;;
+(* let ( >>> ) (e : 'a option) (f : 'a -> 'b) : 'b = *)
+(*     match e with *)
+(*     | None   -> assert false *)
+(*     | Some x -> f x *)
+(* ;; *)
+(* let get_dirty () : int                    = !e >>> (fun config -> config.dirty) ;; *)
 
-let get_orig_termio () : Unix.terminal_io = !e >>> (fun config -> config.orig_termio) ;;
-let get_screenrows () : int               = !e >>> (fun config -> config.screenrows) ;;
-let get_screencols () : int               = !e >>> (fun config -> config.screencols) ;;
-let get_cx () : int                       = !e >>> (fun config -> config.cx) ;;
-let get_cy () : int                       = !e >>> (fun config -> config.cy) ;;
-let get_numrows () : int                  = !e >>> (fun config -> config.numrows) ;;
-let get_erow () : editor_row array        = !e >>> (fun config -> config.erow) ;;
-let get_erow_at (i : int) : editor_row    = !e >>> (fun config -> config.erow.(i)) ;;
-let get_erow_chars (i : int) : string     = !e >>> (fun config -> config.erow.(i).chars) ;;
-let get_erow_size (i : int) : int         = !e >>> (fun config -> config.erow.(i).size) ;;
-let get_erow_render (i : int) : string    = !e >>> (fun config -> config.erow.(i).render) ;;
-let get_erow_rsize (i : int) : int        = !e >>> (fun config -> config.erow.(i).rsize) ;;
-let get_rowoff () : int                   = !e >>> (fun config -> config.rowoff) ;;
-let get_coloff () : int                   = !e >>> (fun config -> config.coloff) ;;
-let get_rx () : int                       = !e >>> (fun config -> config.rx) ;;
-let get_filename () : string              = !e >>> (fun config -> config.filename) ;;
-let get_statusmsg () : string             = !e >>> (fun config -> config.statusmsg) ;;
-let get_statusmsg_time () : float         = !e >>> (fun config -> config.statusmsg_time) ;;
-let get_dirty () : int                    = !e >>> (fun config -> config.dirty) ;;
+let get_orig_termio () : Unix.terminal_io = (Option.get !e).orig_termio ;;
+let get_screenrows () : int               = (Option.get !e).screenrows ;;
+let get_screencols () : int               = (Option.get !e).screencols ;;
+let get_cx () : int                       = (Option.get !e).cx ;;
+let get_cy () : int                       = (Option.get !e).cy ;;
+let get_numrows () : int                  = (Option.get !e).numrows ;;
+let get_erow () : editor_row array        = (Option.get !e).erow ;;
+let get_erow_at (i : int) : editor_row =
+    if i < 0 || i >= (get_numrows ()) then { chars = ""; size = 0; render = ""; rsize = 0; }
+    else (Option.get !e).erow.(i)
+;;
+let get_erow_chars (i : int) : string =
+    if i < 0 || i >= (get_numrows ()) then ""
+    else (Option.get !e).erow.(i).chars
+;;
+let get_erow_size (i : int) : int =
+    if i < 0 || i >= (get_numrows ()) then 0
+    else (Option.get !e).erow.(i).size
+;;
+let get_erow_render (i : int) : string =
+    if i < 0 || i >= (get_numrows ()) then ""
+    else (Option.get !e).erow.(i).render
+;;
+let get_erow_rsize (i : int) : int =
+    if i < 0 || i >= (get_numrows ()) then 0
+    else (Option.get !e).erow.(i).rsize
+;;
+let get_rowoff () : int                   = (Option.get !e).rowoff ;;
+let get_coloff () : int                   = (Option.get !e).coloff ;;
+let get_rx () : int                       = (Option.get !e).rx ;;
+let get_filename () : string              = (Option.get !e).filename ;;
+let get_statusmsg () : string             = (Option.get !e).statusmsg ;;
+let get_statusmsg_time () : float         = (Option.get !e).statusmsg_time ;;
+let get_dirty () : int                    = (Option.get !e).dirty ;;
+
 
 let filename_free (config : editor_config) : editor_config =
     let new_config = { config with filename = "" }
@@ -91,6 +107,8 @@ let editor_set_status_message (statusmsg : string) =
         statusmsg_time = Unix.time ()
     };
 ;;
+
+let quit_times : int ref = ref caml_writer_quit_times ;;
 
 (* Prototypes *)
 
@@ -322,17 +340,20 @@ let editor_row_insert_char (row : editor_row) (at : int) (c : char) =
 
 (* === Editor operations === *)
 let editor_insert_char (c : char) =
-    let cy = get_cy () in
-    let cx = get_cx () in
-    let erow = get_erow_at cy in
-    let new_erow = editor_row_insert_char erow cx c in
-    let updated_erow_array = Array.copy (get_erow ()) in
-    updated_erow_array.(cy) <- new_erow;
-    e := Some { (Option.get !e) with
-        erow = updated_erow_array;
-        numrows = (get_numrows ()) + 1;
-        cx = (get_cx ()) + 1;
-    };
+    if (get_cy ()) = (get_numrows ()) then
+        let _ = editor_append_row (String.make 1 c) 1 in
+        e := Some { (Option.get !e) with
+            cx = (get_cx ()) + 1;
+        }
+    else
+        let new_erow = editor_row_insert_char (get_erow_at (get_cy ())) (get_cx ()) c in
+        let updated_erow_array = Array.copy (get_erow ()) in
+        updated_erow_array.(get_cy ()) <- new_erow;
+        e := Some { (Option.get !e) with
+            erow = updated_erow_array;
+            numrows = (get_numrows ());
+            cx = (get_cx ()) + 1;
+        };
 ;;
 
 (* === File i/o === *)
@@ -431,7 +452,7 @@ let editor_scroll () =
         e := Some { (Option.get !e) with coloff = get_rx () }
     | _ when (get_rx ()) >= (get_coloff ()) + (get_screencols ()) ->
         e := Some { (Option.get !e) with coloff = (get_rx ()) - (get_screencols ()) + 1 }
-    | _ -> ()
+    | _ -> ();
 ;;
 
 let editor_draw_rows (ab : abuf ref) =
@@ -482,7 +503,10 @@ let editor_draw_status_bar (ab : abuf ref) =
         let lines = Printf.sprintf "%d lines" (get_numrows ()) in
         let filename = if (get_filename ()) = "" then "[No Name]" else (get_filename ()) in
         let dirty = if (get_dirty ()) <> 0 then "(modified)" else "" in
-        let rstatus = Printf.sprintf "%d/%d - %d/%d" (get_cy () + 1) (get_numrows ()) (get_cx () + 1) (get_erow_size (get_cy ()) + 1) in
+        let rstatus = Printf.sprintf "%d/%d - %d/%d"
+            (get_cy () + 1) (get_numrows ())
+            (get_cx () + 1) (get_erow_size (get_cy ()) + 1) in
+        let _ = Printf.printf "POIPOI" in
         let len = String.length lines + (String.length filename + 1) + (String.length dirty + 1) + String.length rstatus in
         if len > get_screencols () then
             lines ^ " " ^ (String.sub filename 0 (get_screencols () - String.length lines - 1))
@@ -510,9 +534,9 @@ let editor_refresh_screen () =
     let ab : abuf ref = ref abuf_init in
     ab_append ab "\x1b[?25l" 6; (* Hide cursor *)
     ab_append ab "\x1b[H" 3;    (* Reposition cursor *)
-
     editor_draw_rows(ab);
     editor_draw_status_bar(ab);
+    Printf.printf "HELLO";
     editor_draw_message_bar(ab);
 
     let buf = Printf.sprintf "\x1b[%d;%dH" (get_cy () - get_rowoff() + 1) (get_rx () - get_coloff() + 1) in
@@ -565,7 +589,7 @@ let editor_process_keypress () =
         | _ when c = ctrl_key 'q' ->
             output_string stdout "\x1b[2J"; (* Clear screen *)
             output_string stdout "\x1b[H";  (* Reposition cursor *)
-            exit 0
+            exit 0;
         | _ when c = ctrl_key 's' -> editor_save ()
         | _ when c = arrow_left   -> editor_move_cursor c
         | _ when c = arrow_right  -> editor_move_cursor c
@@ -598,6 +622,7 @@ let editor_process_keypress () =
         | _ when c = Char.code '\x1b' -> ()
         | _ -> editor_insert_char (Char.chr c);
     in
+    quit_times := caml_writer_quit_times;
     match c with
     | None -> ()
     | Some c -> editor_process_keypress' c;
