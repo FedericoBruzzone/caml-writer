@@ -34,6 +34,11 @@ let render_free (row : editor_row) : editor_row =
     in new_row
 ;;
 
+let chars_free (row : editor_row) : editor_row =
+    let new_row = { row with chars = "" }
+    in new_row
+;;
+
 type editor_config = {
     orig_termio    : Unix.terminal_io;
     screenrows     : int;
@@ -51,6 +56,7 @@ type editor_config = {
     dirty          : int;
 }
 
+let quit_times : int ref           = ref caml_writer_quit_times ;;
 let e : (editor_config option ref) = ref None ;;
 
 (* let ( >>> ) (e : 'a option) (f : 'a -> 'b) : 'b = *)
@@ -87,14 +93,13 @@ let get_erow_rsize (i : int) : int =
     if i < 0 || i >= (get_numrows ()) then 0
     else (Option.get !e).erow.(i).rsize
 ;;
-let get_rowoff () : int                   = (Option.get !e).rowoff ;;
-let get_coloff () : int                   = (Option.get !e).coloff ;;
-let get_rx () : int                       = (Option.get !e).rx ;;
-let get_filename () : string              = (Option.get !e).filename ;;
-let get_statusmsg () : string             = (Option.get !e).statusmsg ;;
-let get_statusmsg_time () : float         = (Option.get !e).statusmsg_time ;;
-let get_dirty () : int                    = (Option.get !e).dirty ;;
-
+let get_rowoff () : int           = (Option.get !e).rowoff ;;
+let get_coloff () : int           = (Option.get !e).coloff ;;
+let get_rx () : int               = (Option.get !e).rx ;;
+let get_filename () : string      = (Option.get !e).filename ;;
+let get_statusmsg () : string     = (Option.get !e).statusmsg ;;
+let get_statusmsg_time () : float = (Option.get !e).statusmsg_time ;;
+let get_dirty () : int            = (Option.get !e).dirty ;;
 
 let filename_free (config : editor_config) : editor_config =
     let new_config = { config with filename = "" }
@@ -108,10 +113,7 @@ let editor_set_status_message (statusmsg : string) =
     };
 ;;
 
-let quit_times : int ref = ref caml_writer_quit_times ;;
-
-(* Prototypes *)
-
+(* === Prototypes === *)
 let editor_set_status_message : (string -> unit) = editor_set_status_message ;;
 
 (* === Terminal === *)
@@ -302,7 +304,7 @@ let editor_update_row (row : editor_row) =
                         | _ -> new_render' row (index + 1) (acc ^ (String.make 1 row.chars.[index]))
     in
         new_render' rf_row 0 ""
-        in
+    in
     let updated_row = { rf_row with
         render = new_render;
         rsize = row.size + (!tabs * (caml_writer_tab_stop - 1));
@@ -325,11 +327,58 @@ let editor_append_row (s : string) (len : int) =
     }
 ;;
 
+let editor_free_row (row : editor_row) =
+    let new_row = chars_free (row) in
+    let new_row = render_free (new_row) in
+    new_row
+;;
+
+let editor_del_row (at : int) =
+    if at < 0 || at >= (get_numrows ()) then
+        ()
+    else
+        let updated_erow_array = Array.copy (get_erow ()) in
+        updated_erow_array.(at) <- editor_free_row (updated_erow_array.(at));
+        Array.blit updated_erow_array (at + 1) updated_erow_array at ((get_numrows ()) - at - 1);
+        e := Some { (Option.get !e) with
+            erow = updated_erow_array;
+            numrows = (get_numrows ()) - 1;
+            dirty = (get_dirty ()) + 1;
+        }
+;;
+
 let editor_row_insert_char (row : editor_row) (at : int) (c : char) =
     let at = if at < 0 || at > row.size then row.size else at in
     let new_row = {
         chars = (String.sub row.chars 0 at) ^ (String.make 1 c) ^ (String.sub row.chars at (String.length row.chars - at));
         size  = row.size + 1;
+        render = "";
+        rsize = 0;
+    } in
+    let updated_row = editor_update_row (new_row) in
+    e := Some { (Option.get !e) with dirty = (get_dirty ()) + 1; };
+    updated_row
+;;
+
+let editor_row_del_char (row : editor_row) (at : int) =
+    if at < 0 || at >= row.size then
+        row
+    else
+        let new_row = {
+            chars = (String.sub row.chars 0 at) ^ (String.sub row.chars (at + 1) (String.length row.chars - at - 1));
+            size  = row.size - 1;
+            render = "";
+            rsize = 0;
+        } in
+        let updated_row = editor_update_row (new_row) in
+        e := Some { (Option.get !e) with dirty = (get_dirty ()) + 1; };
+        updated_row
+;;
+
+let editor_row_append_string (row : editor_row) (s : string) (len : int) =
+    let new_row = {
+        chars = row.chars ^ s;
+        size  = row.size + len;
         render = "";
         rsize = 0;
     } in
@@ -356,10 +405,37 @@ let editor_insert_char (c : char) =
         };
 ;;
 
+let editor_del_char () =
+    if (get_cy ()) = (get_numrows ()) then
+        ()
+    else if (get_cx ()) = 0 && (get_cy ()) = 0 then
+        ()
+    else if (get_cx ()) > 0 then
+        let new_erow = editor_row_del_char (get_erow_at (get_cy ())) (get_cx () - 1) in
+        let updated_erow_array = Array.copy (get_erow ()) in
+        updated_erow_array.(get_cy ()) <- new_erow;
+        e := Some { (Option.get !e) with
+            erow = updated_erow_array;
+            numrows = (get_numrows ());
+            cx = (get_cx ()) - 1;
+        };
+    else
+        let new_row = editor_row_append_string (get_erow_at ((get_cy ()) - 1)) (get_erow_chars (get_cy ())) (get_erow_size (get_cy ())) in
+        let updated_erow_array = Array.copy (get_erow ()) in
+        updated_erow_array.(get_cy () - 1) <- new_row;
+        e := Some { (Option.get !e) with
+            erow = updated_erow_array;
+            numrows = (get_numrows ());
+            cy = (get_cy ()) - 1;
+            cx = (get_erow_size ((get_cy ()) - 1));
+        };
+        editor_del_row ((get_cy ()) + 1);
+;;
+
 (* === File i/o === *)
 let editor_rows_to_string () : string =
     let rec editor_rows_to_string' (rows : editor_row array) (index : int) (acc : string) =
-        if index = Array.length rows then
+        if index = get_numrows () then
             acc
         else
             editor_rows_to_string' rows (index + 1) (acc ^ rows.(index).chars ^ "\n")
@@ -627,7 +703,9 @@ let editor_process_keypress () =
         | _ when c = Char.code '\r' -> () (* TODO *)
         | _ when c = backspace_key -> () (* TODO *)
         | _ when c = ctrl_key 'h' -> () (* TODO *)
-        | _ when c = home_key -> () (* TODO *)
+        | _ when c = del_key ->
+                editor_move_cursor arrow_right;
+                editor_del_char ();
         | _ when c = ctrl_key 'l' -> ()
         | _ when c = Char.code '\x1b' -> ()
         | _ -> editor_insert_char (Char.chr c);
