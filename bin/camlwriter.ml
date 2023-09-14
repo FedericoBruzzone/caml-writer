@@ -287,7 +287,7 @@ let editor_row_cx_to_rx(row : editor_row) (cx : int) : int =
     editor_row_cx_to_rx' row 0 cx 0
 ;;
 
-let editor_update_row (row : editor_row) =
+let editor_update_row (row : editor_row) : editor_row =
     let tabs = ref 0 in
     for i = 0 to String.length row.chars - 1 do
         if row.chars.[i] = '\t' then
@@ -312,19 +312,31 @@ let editor_update_row (row : editor_row) =
     in updated_row
 ;;
 
-let editor_append_row (s : string) (len : int) =
-    let row = {
-        chars = s;
-        size  = len;
-        render = "";
-        rsize = 0;
-    } in
-    let updated_row = editor_update_row (row) in
-    e := Some { (Option.get !e) with
-        erow = Array.append (get_erow ()) [| updated_row |];
-        numrows = (get_numrows ()) + 1;
-        dirty = (get_dirty ()) + 1;
-    }
+let editor_insert_row (at : int) (s : string) (len : int) =
+    if at < 0 || at > (get_numrows () + 1) then
+        ()
+    else
+        let updated_erow_array = Array.make ((get_numrows ()) + 1) {
+            chars = "";
+            size  = 0;
+            render = "";
+            rsize = 0;
+        } in
+        Array.blit (get_erow ()) 0 updated_erow_array 0 at;
+        let new_row = {
+            chars = s;
+            size  = len;
+            render = "";
+            rsize = 0;
+        } in
+        let updated_row = editor_update_row (new_row) in
+        updated_erow_array.(at) <- updated_row;
+        Array.blit (get_erow ()) at updated_erow_array (at + 1) ((get_numrows ()) - at);
+        e := Some { (Option.get !e) with
+            erow = updated_erow_array;
+            numrows = (get_numrows ()) + 1;
+            dirty = (get_dirty ()) + 1;
+        }
 ;;
 
 let editor_free_row (row : editor_row) =
@@ -390,7 +402,7 @@ let editor_row_append_string (row : editor_row) (s : string) (len : int) =
 (* === Editor operations === *)
 let editor_insert_char (c : char) =
     if (get_cy ()) = (get_numrows ()) then
-        let _ = editor_append_row (String.make 1 c) 1 in
+        let _ = editor_insert_row (get_numrows ()) (String.make 1 c) 1 in
         e := Some { (Option.get !e) with
             cx = (get_cx ()) + 1;
         }
@@ -404,6 +416,36 @@ let editor_insert_char (c : char) =
             cx = (get_cx ()) + 1;
         };
 ;;
+
+let editor_insert_new_line () =
+    if (get_cx ()) = 0 then (
+        let _ = editor_insert_row (get_cy ()) "" 0 in
+        e := Some { (Option.get !e) with
+            cy = (get_cy ()) + 1;
+            cx = 0;
+        }
+    )
+    else
+        let row = get_erow_at (get_cy ()) in
+        let _ = editor_insert_row ((get_cy ()) + 1) (String.sub row.chars (get_cx ()) (row.size - (get_cx ()))) (row.size - (get_cx ())) in
+        let remaining_row = String.sub row.chars 0 (get_cx ()) in
+        let new_erow = {
+            chars = remaining_row;
+            size  = String.length remaining_row;
+            render = "";
+            rsize = 0;
+        } in
+        let updated_new_row = editor_update_row (new_erow) in
+        let updated_erow_array = Array.copy (get_erow ()) in
+        updated_erow_array.(get_cy ()) <- updated_new_row;
+        e := Some { (Option.get !e) with
+            erow = updated_erow_array;
+            numrows = (get_numrows ());
+            cy = (get_cy ()) + 1;
+            cx = 0;
+        }
+;;
+
 
 let editor_del_char () =
     if (get_cy ()) = (get_numrows ()) then
@@ -456,7 +498,7 @@ let editor_open (file_name : string) =
         try
             let line = input_line fp in
             let line_len = String.length line in
-            editor_append_row line line_len;
+            editor_insert_row (get_numrows()) line line_len;
             open_file' fp
         with
             End_of_file -> ()
@@ -582,7 +624,6 @@ let editor_draw_status_bar (ab : abuf ref) =
         let rstatus = Printf.sprintf "%d/%d - %d/%d"
             (get_cy () + 1) (get_numrows ())
             (get_cx () + 1) (get_erow_size (get_cy ()) + 1) in
-        let _ = Printf.printf "POIPOI" in
         let len = String.length lines + (String.length filename + 1) + (String.length dirty + 1) + String.length rstatus in
         if len > get_screencols () then
             lines ^ " " ^ (String.sub filename 0 (get_screencols () - String.length lines - 1))
@@ -612,7 +653,6 @@ let editor_refresh_screen () =
     ab_append ab "\x1b[H" 3;    (* Reposition cursor *)
     editor_draw_rows(ab);
     editor_draw_status_bar(ab);
-    Printf.printf "HELLO";
     editor_draw_message_bar(ab);
 
     let buf = Printf.sprintf "\x1b[%d;%dH" (get_cy () - get_rowoff() + 1) (get_rx () - get_coloff() + 1) in
@@ -700,7 +740,7 @@ let editor_process_keypress () =
             for _ = 0 to times do
                 editor_move_cursor arrow_down
             done
-        | _ when c = Char.code '\r' -> () (* TODO *)
+        | _ when c = Char.code '\r' -> editor_insert_new_line ()
         | _ when c = backspace_key -> () (* TODO *)
         | _ when c = ctrl_key 'h' -> () (* TODO *)
         | _ when c = del_key ->
