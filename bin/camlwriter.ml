@@ -741,8 +741,12 @@ let editor_process_keypress () =
                 editor_move_cursor arrow_down
             done
         | _ when c = Char.code '\r' -> editor_insert_new_line ()
-        | _ when c = backspace_key -> () (* TODO *)
-        | _ when c = ctrl_key 'h' -> () (* TODO *)
+        | _ when c = backspace_key ->
+                editor_move_cursor arrow_right;
+                editor_del_char ();
+        | _ when c = ctrl_key 'h' ->
+                editor_move_cursor arrow_right;
+                editor_del_char ();
         | _ when c = del_key ->
                 editor_move_cursor arrow_right;
                 editor_del_char ();
