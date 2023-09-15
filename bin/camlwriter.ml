@@ -106,7 +106,7 @@ let filename_free (config : editor_config) : editor_config =
     in new_config
 ;;
 
-let editor_set_status_message (statusmsg : string) =
+let editor_set_status_message (statusmsg : string) : unit =
     e := Some { (Option.get !e) with
         statusmsg = statusmsg;
         statusmsg_time = Unix.time ()
@@ -114,7 +114,8 @@ let editor_set_status_message (statusmsg : string) =
 ;;
 
 (* === Prototypes === *)
-let editor_set_status_message : (string -> unit) = editor_set_status_message ;;
+(* let editor_set_status_message : (string -> unit) = editor_set_status_message ;; *)
+(* let editor_refresh_screen : (unit -> unit) = editor_refresh_screen ;; *)
 
 (* === Terminal === *)
 let die (s : string) =
@@ -446,7 +447,6 @@ let editor_insert_new_line () =
         }
 ;;
 
-
 let editor_del_char () =
     if (get_cy ()) = (get_numrows ()) then
         ()
@@ -665,6 +665,16 @@ let editor_refresh_screen () =
 ;;
 
 (* === Input === *)
+let editor_prompt (prompt : char) =
+    let buf : abuf ref = ref abuf_init in
+    let buf_len : int ref = ref 0 in
+    while true do
+        editor_set_status_message (Printf.sprintf "%c%s" prompt !buf.b);
+        editor_refresh_screen ();
+        let c = editor_read_key () in
+   done
+;;
+
 let editor_move_cursor c  =
     let row = if (get_cy ()) >= (get_numrows ()) then "" else (get_erow_chars (get_cy ())) in
     let _ = match c with
