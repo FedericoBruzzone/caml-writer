@@ -1,4 +1,4 @@
-open Caml_writer
+open Caml_writer (* "Root" module *)
 (* open Unix *)
 
 (* === Utils === *)
@@ -510,7 +510,12 @@ let editor_open (file_name : string) =
 
 let editor_save () =
     let file_name = get_filename () in
-    if file_name = "" then ()
+    if file_name = "" then
+        let new_file_name = "TEST" in (* editor_prompt "Save as: %s (ESC to cancel)" in *)
+        if new_file_name = "" then
+            editor_set_status_message "Save aborted"
+        else
+            e := Some { (Option.get !e) with filename = new_file_name }
     else
         let buf = editor_rows_to_string () in
         let fp =
@@ -665,14 +670,36 @@ let editor_refresh_screen () =
 ;;
 
 (* === Input === *)
-let editor_prompt (prompt : char) =
+let editor_prompt (prompt : string) =
     let buf : abuf ref = ref abuf_init in
-    let buf_len : int ref = ref 0 in
-    while true do
-        editor_set_status_message (Printf.sprintf "%c%s" prompt !buf.b);
+    let buf_size : int = 128 in
+    let rec editor_prompt' (buf_size : int) =
+        editor_set_status_message (prompt ^ !buf.b);
         editor_refresh_screen ();
         let c = editor_read_key () in
-   done
+        match c with
+        | _ when c = Some (Char.code '\x1b') ->
+            editor_set_status_message "";
+            ab_free buf;
+            None
+        | _ when c = Some (Char.code '\r') ->
+            if !buf.len <> 0 then
+                editor_set_status_message "";
+                Some buf
+        | _ when not (is_control_char (Option.get c)) && c < Some 128 ->
+            let new_buf_size = if !buf.len = buf_size - 1 then
+                            buf_size * 2
+                        else
+                            buf_size
+            in
+            buf := {
+                b = !buf.b ^ (String.make 1 (Char.chr (Option.get c)));
+                len = !buf.len + 1;
+            };
+            editor_prompt' new_buf_size
+        | _ -> Some buf
+    in
+    editor_prompt' buf_size
 ;;
 
 let editor_move_cursor c  =
