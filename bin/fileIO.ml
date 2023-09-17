@@ -35,15 +35,55 @@ let editor_open (file_name : string) =
     e := Some { (Option.get !e) with dirty = 0 }
 ;;
 
+
+open Utils
+open Data
+open Terminal
+open Editor
+open Buffer
+open Output
+
+let editor_prompt (prompt : string) : abuf ref option =
+    let buf : abuf ref = ref abuf_init in
+    let buf_size : int = 128 in
+    let rec editor_prompt' (buf_size : int) =
+        editor_set_status_message (prompt ^ !buf.b);
+        editor_refresh_screen ();
+        let c = editor_read_key () in
+        match c with
+        (* | _ when c = Some (Char.code '\x1b') -> *)
+        (*     editor_set_status_message ""; *)
+        (*     ab_free buf; *)
+        (*     None *)
+        | _ when c = Some (Char.code '\r') ->
+            if !buf.len <> 0 then
+                editor_set_status_message "";
+                Some buf
+        | None -> editor_prompt' buf_size
+        | _ when not (is_control_char (Option.get c)) && c < Some 128 ->
+            let new_buf_size = if !buf.len = buf_size - 1 then
+                            buf_size * 2
+                        else
+                            buf_size
+            in
+            buf := {
+                b = !buf.b ^ (String.make 1 (Char.chr (Option.get c)));
+                len = !buf.len + 1;
+            };
+            editor_prompt' new_buf_size
+    in
+    editor_prompt' buf_size
+;;
+
 let editor_save () =
     let file_name = get_filename () in
     if file_name = "" then
-        let new_file_name = "TEST" in
-        (* let new_file_name = editor_prompt "Save as: %s (ESC to cancel)" in *)
-        if new_file_name = "" then
+        (* let new_file_name = "TEST" in *)
+        let new_file_name = editor_prompt "Save as: %s (ESC to cancel)" in
+        if new_file_name = None then
             editor_set_status_message "Save aborted"
         else
-            e := Some { (Option.get !e) with filename = new_file_name }
+            e := Some { (Option.get !e) with filename = !(Option.get new_file_name).b };
     else
         let buf = editor_rows_to_string () in
         let fp =

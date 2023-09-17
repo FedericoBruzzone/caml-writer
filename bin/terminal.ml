@@ -92,7 +92,6 @@ let editor_read_key () : int option =
             | End_of_file -> None
     in
     if c = Some (Char.code '\x1b') then
-    (* if Char.chr c = '\x1b' then *)
         let c' = input_byte stdin in
         let c'' = input_byte stdin in
         if Char.chr c' = '[' then
@@ -127,7 +126,7 @@ let editor_read_key () : int option =
         else
             Some ( Char.code '\x1b' )
     else
-       c
+        c
 ;;
 
 let get_cursor_position () : (int * int) =

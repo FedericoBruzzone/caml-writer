@@ -6,37 +6,37 @@ open Editor
 open Buffer
 open Output
 
-let editor_prompt (prompt : string) : abuf ref option =
-    let buf : abuf ref = ref abuf_init in
-    let buf_size : int = 128 in
-    let rec editor_prompt' (buf_size : int) =
-        editor_set_status_message (prompt ^ !buf.b);
-        editor_refresh_screen ();
-        let c = editor_read_key () in
-        match c with
-        | _ when c = Some (Char.code '\x1b') ->
-            editor_set_status_message "";
-            ab_free buf;
-            None
-        | _ when c = Some (Char.code '\r') ->
-            if !buf.len <> 0 then
-                editor_set_status_message "";
-                Some buf
-        | _ when not (is_control_char (Option.get c)) && c < Some 128 ->
-            let new_buf_size = if !buf.len = buf_size - 1 then
-                            buf_size * 2
-                        else
-                            buf_size
-            in
-            buf := {
-                b = !buf.b ^ (String.make 1 (Char.chr (Option.get c)));
-                len = !buf.len + 1;
-            };
-            editor_prompt' new_buf_size
-        | _ -> Some buf
-    in
-    editor_prompt' buf_size
-;;
+(* let editor_prompt (prompt : string) : abuf ref option = *)
+(*     let buf : abuf ref = ref abuf_init in *)
+(*     let buf_size : int = 128 in *)
+(*     let rec editor_prompt' (buf_size : int) = *)
+(*         editor_set_status_message (prompt ^ !buf.b); *)
+(*         editor_refresh_screen (); *)
+(*         let c = editor_read_key () in *)
+(*         match c with *)
+(*         | _ when c = Some (Char.code '\x1b') -> *)
+(*             editor_set_status_message ""; *)
+(*             ab_free buf; *)
+(*             None *)
+(*         | _ when c = Some (Char.code '\r') -> *)
+(*             if !buf.len <> 0 then *)
+(*                 editor_set_status_message ""; *)
+(*                 Some buf *)
+(*         | _ when not (is_control_char (Option.get c)) && c < Some 128 -> *)
+(*             let new_buf_size = if !buf.len = buf_size - 1 then *)
+(*                             buf_size * 2 *)
+(*                         else *)
+(*                             buf_size *)
+(*             in *)
+(*             buf := { *)
+(*                 b = !buf.b ^ (String.make 1 (Char.chr (Option.get c))); *)
+(*                 len = !buf.len + 1; *)
+(*             }; *)
+(*             editor_prompt' new_buf_size *)
+(*         | _ -> Some buf *)
+(*     in *)
+(*     editor_prompt' buf_size *)
+(* ;; *)
 
 let editor_move_cursor c  =
     let row = if (get_cy ()) >= (get_numrows ()) then "" else (get_erow_chars (get_cy ())) in
