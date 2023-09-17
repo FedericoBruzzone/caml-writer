@@ -1,6 +1,6 @@
 (lang dune 3.10)
 
-(name caml_writer)
+(name camlwriter)
 
 (generate_opam_files true)
 
@@ -16,7 +16,8 @@
 (documentation https://url/to/documentation)
 
 (package
- (name caml_writer)
+ ; (name caml_writer)
+ (name camlwriter)
  (synopsis "A short synopsis")
  (description "A longer description")
  (depends ocaml dune)

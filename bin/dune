@@ -1,9 +1,9 @@
 (executable
- (public_name caml_writer)
+ (public_name camlwriter)
  (name main)
- (libraries caml_writer
+ (libraries camlwriter
             unix)
- ; (module main camlwriter ... )
+ ; (module main ... )
  )
 
 (env

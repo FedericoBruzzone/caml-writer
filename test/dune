@@ -1,2 +1,2 @@
 (test
- (name caml_writer))
+ (name camlwriter))

@@ -1,7 +1,6 @@
 (library
- ; (name caml_writer)
  (name camlwriterlibs)
- (public_name caml_writer)
+ (public_name camlwriter)
  (foreign_stubs
    (language c)
    (names window_size_stub))

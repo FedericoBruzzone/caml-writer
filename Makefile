@@ -5,7 +5,7 @@
 
 DUNE = dune
 
-CAML_WRITER = caml_writer
+CAML_WRITER = camlwriter
 
 all: build
 

@@ -31,7 +31,6 @@ let init_editor () : unit =
 let loop () : unit =
     let rec loop' () =
         flush stdout;
-        (* update rows and columns *)
         editor_refresh_screen();
         editor_process_keypress ();
         loop' ()
