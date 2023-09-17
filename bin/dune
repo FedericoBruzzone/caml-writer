@@ -2,7 +2,10 @@
  (public_name caml_writer)
  (name main)
  (libraries caml_writer
-            unix))
+            unix)
+ ; (module main camlwriter ... )
+ )
+
 (env
  (dev
   ; (flags (:standard -w -27))))
