@@ -80,6 +80,22 @@ let editor_prompt (prompt : string) =
     editor_prompt' prompt;
 ;;
 
+let save_file (file_name : string) =
+    let buf = editor_rows_to_string () in
+    let fp =
+        try
+            Some ( open_out file_name )
+        with
+        | Sys_error err ->
+            editor_set_status_message (Printf.sprintf "Can't save! I/O error: %s" err);
+            None
+    in
+    output_string (Option.get fp) buf;
+    e := Some { (Option.get !e) with dirty = 0 };
+    editor_set_status_message (file_name ^ " " ^ (string_of_int (String.length buf)) ^ " bytes written to disk");
+    close_out (Option.get fp)
+;;
+
 let editor_save () =
     let file_name = get_filename () in
     if file_name = "" then (
@@ -88,20 +104,9 @@ let editor_save () =
             editor_set_status_message "Save aborted";
         ) else (
             e := Some { (Option.get !e) with filename = !prompt_buf.b };
+            save_file !prompt_buf.b;
         )
     ) else
-        let buf = editor_rows_to_string () in
-        let fp =
-            try
-                Some ( open_out file_name )
-            with
-            | Sys_error err ->
-                editor_set_status_message (Printf.sprintf "Can't save! I/O error: %s" err);
-                None
-        in
-        output_string (Option.get fp) buf;
-        e := Some { (Option.get !e) with dirty = 0 };
-        editor_set_status_message (file_name ^ " " ^ (string_of_int (String.length buf)) ^ " bytes written to disk");
-        close_out (Option.get fp)
+        save_file file_name
 ;;
 
