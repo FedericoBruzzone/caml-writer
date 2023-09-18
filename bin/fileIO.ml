@@ -45,32 +45,37 @@ open Output
 
 let prompt_buf : abuf ref = ref { b = ""; len = 0 } ;;
 
-let editor_process_prompt_keypress () =
+let editor_process_prompt_keypress () : bool =
     let c = editor_read_key () in
     if c != None then
         match c with
         | _ when Option.get c = Char.code '\r' ->
-            if !prompt_buf.len != 0 then (
+            if !prompt_buf.len != 0 then
                 editor_set_status_message "";
-                ()
-            )
+                true
         | _ when (not (is_control_char (Option.get c))) && (Option.get c) < 128 ->
             let new_string = String.make 1 (Char.chr (Option.get c)) in
             ab_append prompt_buf new_string (String.length new_string);
+            false
         | _ when Option.get c = Char.code '\x1b' ->
             editor_set_status_message "";
             ab_free prompt_buf;
-            ()
-        | _ -> ()
-    ;;
+            true
+        | _ -> false
+    else
+        false
+;;
 
 let editor_prompt (prompt : string) =
     let rec editor_prompt'(prompt : string) =
         flush stdout;
         editor_set_status_message (prompt ^ !prompt_buf.b);
         editor_refresh_screen ();
-        editor_process_prompt_keypress ();
-        editor_prompt' prompt;
+        let _ = Printf.printf "%s" (String.make 1 (Char.chr (Char.code '\x1b'))) in
+        if editor_process_prompt_keypress () then
+            ()
+        else
+            editor_prompt' prompt;
     in
     editor_prompt' prompt;
 ;;
@@ -78,9 +83,12 @@ let editor_prompt (prompt : string) =
 let editor_save () =
     let file_name = get_filename () in
     if file_name = "" then (
-        (* let new_file_name = "TEST" in *)
         editor_prompt "Save as: %s (ESC to cancel)";
-        e := Some { (Option.get !e) with filename = !prompt_buf.b };
+        if !prompt_buf.len == 0 then (
+            editor_set_status_message "Save aborted";
+        ) else (
+            e := Some { (Option.get !e) with filename = !prompt_buf.b };
+        )
     ) else
         let buf = editor_rows_to_string () in
         let fp =
