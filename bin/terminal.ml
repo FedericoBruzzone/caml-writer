@@ -92,8 +92,8 @@ let editor_read_key () : int option =
             | End_of_file -> None
     in
     if c = Some (Char.code '\x1b') then
-        let c' = input_byte stdin in
-        let c'' = input_byte stdin in
+        let c'  = try input_byte stdin with _ -> Char.code '\x1b' in
+        let c'' = try input_byte stdin with _ -> Char.code '\x1b' in
         if Char.chr c' = '[' then
             if Char.chr c'' >= '0' && Char.chr c'' <= '9' then
                 let c''' = input_byte stdin in

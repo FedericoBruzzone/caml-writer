@@ -39,7 +39,7 @@ let editor_open (file_name : string) =
 open Utils
 open Data
 open Terminal
-open Editor
+(* open Editor *)
 open Buffer
 open Output
 
@@ -49,6 +49,16 @@ let editor_process_prompt_keypress () : bool =
     let c = editor_read_key () in
     if c != None then
         match c with
+        | _ when Option.get c = del_key
+              || Option.get c = ctrl_key 'h'
+              || Option.get c = backspace_key ->
+            if !prompt_buf.len != 0 then
+                prompt_buf := { b = (String.sub !prompt_buf.b 0 (!prompt_buf.len - 1)); len = !prompt_buf.len - 1 };
+                false
+        | _ when Option.get c = Char.code '\x1b' ->
+            editor_set_status_message "";
+            ab_free prompt_buf;
+            true
         | _ when Option.get c = Char.code '\r' ->
             if !prompt_buf.len != 0 then
                 editor_set_status_message "";
@@ -57,10 +67,6 @@ let editor_process_prompt_keypress () : bool =
             let new_string = String.make 1 (Char.chr (Option.get c)) in
             ab_append prompt_buf new_string (String.length new_string);
             false
-        | _ when Option.get c = Char.code '\x1b' ->
-            editor_set_status_message "";
-            ab_free prompt_buf;
-            true
         | _ -> false
     else
         false
@@ -99,12 +105,12 @@ let save_file (file_name : string) =
 let editor_save () =
     let file_name = get_filename () in
     if file_name = "" then (
-        editor_prompt "Save as: %s (ESC to cancel)";
+        editor_prompt "(ESC to cancel) Save as: ";
         if !prompt_buf.len == 0 then (
             editor_set_status_message "Save aborted";
         ) else (
             e := Some { (Option.get !e) with filename = !prompt_buf.b };
-            save_file !prompt_buf.b;
+            save_file (get_filename ());
         )
     ) else
         save_file file_name
