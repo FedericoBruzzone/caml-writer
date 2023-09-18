@@ -61,7 +61,7 @@ let enable_row_mode () : unit =
                          Unix.c_inpck  = false; (* Enable parity checking *)
                          Unix.c_istrip = false; (* 8th bit of each input byte to be stripped, meaning it will set it to 0. *)
                          Unix.c_csize  = 8;     (* Character size (now is 8 bit) *)
-                         Unix.c_vmin   = 0;     (* Minimum number of reaebytes of input needed before input function returns *)
+                         Unix.c_vmin   = 0;     (* Minimum number of read bytes of input needed before input function returns *)
                          Unix.c_vtime  = 1;     (* Maximum amount of time to wait before input function returns *)
                      }
     in
