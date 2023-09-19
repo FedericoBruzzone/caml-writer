@@ -1,12 +1,14 @@
-# CamlWriter
+# CamlWriter (CW)
 
-The **CamlWriter** project is a terminal-based text editor that has been developed using the OCaml programming language. 
+The **CamlWriter** project is a terminal-based text editor that has been developed using the OCaml programming language.
 
 Key features of the CamlWriter:
 
-1. _Terminal Interface_: Caml Writer is designed to be used entirely within a terminal environment, making it suitable for users who prefer working with text editors from the command line.
+1. _Terminal Setup_: CamlWriter processes byte by byte having set the terminal to `raw mode` ([more info](https://en.wikipedia.org/wiki/POSIX_terminal_interface))
 
-2. _Basic Text Editing_: Users can create, open, edit, and save plain text files using standard text editing commands. This includes functionalities like inserting, deleting, copying, and pasting text.
+2. _Terminal Interface_: CamlWriter is designed to be used entirely within a terminal environment, making it suitable for users who prefer working with text editors from the command line.
+
+3. _Basic Text Editing_: Users can create, open, edit, and save plain text files using standard text editing commands.
 
 ## Project Structure
 
@@ -61,18 +63,10 @@ The project structure is organized as follows:
     $ opam install dune merlin ocaml-lsp-server odoc ocamlformat utop dune-release
     ```
 
-4. **Install Dependencies**: 
+4. **Install Dependencies**:
     ```bash
-    $ opam install unix 
+    $ opam install unix
     ```
-
-## Getting Started
-
-1. **Clone the Repository:** Clone this repository to your local machine using the following command:
-
-   ```
-   https://github.com/FedericoBruzzone/setup-ocaml-project-without-dune.git
-   ```
 
 ## Getting Started
 
@@ -83,11 +77,11 @@ The project structure is organized as follows:
    ```
 
 2. **Compile and Run:**
-    
+
     - To compile the code and create an executable with `make`, run:
       ```bash
       $ make        # or make build
-      $ make run
+      $ make run ARGS=[<file-path>]
       ```
 
       eventually,
@@ -98,8 +92,8 @@ The project structure is organized as follows:
 
     - To compile the code and create an executable with `dune`, run:
         ```bash
-        $ dune build 
-        $ dune exec caml_writer
+        $ dune build
+        $ dune exec caml_writer [<file-path>]
         ```
 
         eventually,
@@ -118,6 +112,24 @@ The project structure is organized as follows:
 
 Contributions to this project are welcome! If you have any suggestions, improvements, or bug fixes, feel free to submit a pull request.
 
+## Useful link:
+
+- [POSIX Terminal Interface](https://en.wikipedia.org/wiki/POSIX_terminal_interface)
+
+- [AsciiTable](https://www.asciitable.com/)
+
+- [Flow Control](https://en.wikipedia.org/wiki/Software_flow_control)
+
+- [VT100 docs](https://vt100.net/docs/vt100-ug/contents.html)
+
+## Ispired by:
+
+- [kilo](https://viewsourcecode.org/snaptoken/kilo/)
+
+- [hecto](https://www.flenker.blog/hecto/)
+
+- [nano](https://www.nano-editor.org/)
+
 ## License
 
 This repository is licensed under the [GNU General Public License (GPL)](https://www.gnu.org/licenses/gpl-3.0.html). Please review the license file provided in the repository for more information regarding the terms and conditions of the GPL license.
@@ -127,4 +139,4 @@ This repository is licensed under the [GNU General Public License (GPL)](https:/
 If you have any questions or suggestions regarding this repository, please don't hesitate to reach out. You can contact us via the GitHub repository or through the following channels:
 - Email: [federico.bruzzone.i@gmail.com] or [federico.bruzzone@studenti.unimi.it]
 
----
+
