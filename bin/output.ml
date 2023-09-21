@@ -17,7 +17,6 @@ let editor_scroll () =
       e :=
         Some { (Option.get !e) with rowoff = get_cy () - get_screenrows () + 1 }
   | _ -> (
-      ();
       match get_rx () with
       | _ when get_rx () < get_coloff () ->
           e := Some { (Option.get !e) with coloff = get_rx () }
@@ -52,7 +51,7 @@ let editor_draw_rows (ab : abuf ref) =
             ab_append ab welcome welcome_len
           ) else
             ab_append ab "~" 1
-      | __ when filerow < get_numrows () ->
+      | _ when filerow < get_numrows () ->
           let len =
             match get_erow_rsize filerow - get_coloff () with
             | _ when get_erow_rsize filerow - get_coloff () > get_screencols ()
@@ -69,7 +68,6 @@ let editor_draw_rows (ab : abuf ref) =
       | _ -> assert false
     in
     ab_append ab "\x1b[K" 3;
-    (* if i < get_screenrows () - 1 then *)
     ab_append ab "\r\n" 2
   done
 
@@ -129,10 +127,10 @@ let editor_draw_message_bar (ab : abuf ref) =
 let editor_refresh_screen () =
   editor_scroll ();
   let ab : abuf ref = ref abuf_init in
-  ab_append ab "\x1b[?25l" 6;
   (* Hide cursor *)
-  ab_append ab "\x1b[H" 3;
+  ab_append ab "\x1b[?25l" 6;
   (* Reposition cursor *)
+  ab_append ab "\x1b[H" 3;
   editor_draw_rows ab;
   editor_draw_status_bar ab;
   editor_draw_message_bar ab;
@@ -144,8 +142,7 @@ let editor_refresh_screen () =
   in
   ab_append ab buf (String.length buf);
 
-  (* ab_append ab "\x1b[H" 3;    (* Reposition cursor *) *)
-  ab_append ab "\x1b[?25h" 6;
   (* Show cursor *)
+  ab_append ab "\x1b[?25h" 6;
   output_string stdout !ab.b;
   ab_free ab

@@ -3,8 +3,6 @@ open Data
 open Terminal
 open FileIO
 open Editor
-open Buffer
-open Output
 
 let editor_move_cursor c =
   let row =
@@ -68,10 +66,10 @@ let editor_process_keypress () =
         if check_exit then
           ()
         else (
-          output_string stdout "\x1b[2J";
           (* Clear screen *)
-          output_string stdout "\x1b[H";
+          output_string stdout "\x1b[2J";
           (* Reposition cursor *)
+          output_string stdout "\x1b[H";
           exit 0
         )
     | _ when c = ctrl_key 's' -> editor_save ()
@@ -98,7 +96,7 @@ let editor_process_keypress () =
                 cy = get_rowoff () + get_screenrows () - 1;
               }
         else
-          e := Some { (Option.get !e) with cy = get_numrows () };
+          e := Some { (Option.get !e) with cy = get_numrows () - 1 };
         let times = get_screenrows () in
         for _ = 0 to times do
           editor_move_cursor arrow_down
@@ -119,4 +117,8 @@ let editor_process_keypress () =
         editor_insert_char (Char.chr c);
         quit_times := caml_writer_quit_times
   in
-  match c with None -> () | Some c -> editor_process_keypress' c
+  match c with
+  | None -> ()
+  | Some c ->
+      let _ = Printf.printf "%d\n" c in
+      editor_process_keypress' c

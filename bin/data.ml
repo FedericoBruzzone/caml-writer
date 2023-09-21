@@ -18,6 +18,7 @@ type editor_config = {
   numrows : int;
   rowoff : int;
   coloff : int;
+  (* rx is the index of the cursor in the render field of the current row *)
   rx : int;
   filename : string;
   statusmsg : string;
