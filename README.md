@@ -112,7 +112,7 @@ The project structure is organized as follows:
 
 Contributions to this project are welcome! If you have any suggestions, improvements, or bug fixes, feel free to submit a pull request.
 
-## Useful link:
+## Useful links and commands:
 
 - [POSIX Terminal Interface](https://en.wikipedia.org/wiki/POSIX_terminal_interface)
 
@@ -121,6 +121,8 @@ Contributions to this project are welcome! If you have any suggestions, improvem
 - [Flow Control](https://en.wikipedia.org/wiki/Software_flow_control)
 
 - [VT100 docs](https://vt100.net/docs/vt100-ug/contents.html)
+
+- `showkey -a` show key information
 
 ## Ispired by:
 

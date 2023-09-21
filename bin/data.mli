@@ -3,6 +3,11 @@ type editor_row = { chars : string; size : int; render : string; rsize : int }
 val render_free : editor_row -> editor_row
 val chars_free : editor_row -> editor_row
 
+val get_render : editor_row -> string
+val get_chars : editor_row -> string
+val get_size : editor_row -> int
+val get_rsize : editor_row -> int
+
 type editor_config = {
   orig_termio : Unix.terminal_io;
   screenrows : int;

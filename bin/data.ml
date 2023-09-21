@@ -8,6 +8,11 @@ let chars_free (row : editor_row) : editor_row =
   let new_row = { row with chars = "" } in
   new_row
 
+let get_render (row : editor_row) : string = row.render
+let get_chars (row : editor_row) : string = row.chars
+let get_size (row : editor_row) : int = row.size
+let get_rsize (row : editor_row) : int = row.rsize
+
 type editor_config = {
   orig_termio : Unix.terminal_io;
   screenrows : int;
