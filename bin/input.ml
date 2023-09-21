@@ -120,5 +120,4 @@ let editor_process_keypress () =
   match c with
   | None -> ()
   | Some c ->
-      let _ = Printf.printf "%d\n" c in
       editor_process_keypress' c

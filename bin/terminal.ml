@@ -130,14 +130,6 @@ let editor_read_key () : int option =
       | _ -> Some (Char.code '\x1b')
     else
       Some (Char.code '\x1b')
-  else if (* Handle \xc3 *)
-          c = Some (Char.code '\xc3') then
-    let c' = try input_byte stdin with _ -> Char.code '\xc3' in
-    if Char.chr c' = '\xa9' then
-      (* return `é` *)
-        Some (Char.code '\xe9')
-    else
-      Some (Char.code '\xc3')
   else
     c
 

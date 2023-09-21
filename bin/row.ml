@@ -27,11 +27,7 @@ let editor_update_row (row : editor_row) : editor_row =
       else
         match row.chars.[index] with
         | '\t' ->
-            new_render' row (index + 1)
-              (acc
-              ^ String.make
-                  (caml_writer_tab_stop - (index mod caml_writer_tab_stop))
-                  ' ')
+            new_render' row (index + 1) (acc ^ String.make (caml_writer_tab_stop - (index mod caml_writer_tab_stop)) ' ')
         | _ ->
             new_render' row (index + 1) (acc ^ String.make 1 row.chars.[index])
     in
