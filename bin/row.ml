@@ -2,17 +2,13 @@ open Utils
 open Data
 
 let editor_row_cx_to_rx (row : editor_row) (cx : int) : int =
-  let rec editor_row_cx_to_rx' row index cx rx =
-    if index = cx then
-      rx
-    else
-      match row.chars.[index] with
-      | '\t' ->
-          editor_row_cx_to_rx' row (index + 1) cx
-            (rx + (caml_writer_tab_stop - (rx mod caml_writer_tab_stop)))
-      | _ -> editor_row_cx_to_rx' row (index + 1) cx (rx + 1)
-  in
-  editor_row_cx_to_rx' row 0 cx 0
+  let rx = ref 0 in
+  for i = 0 to cx - 1 do
+    rx := !rx + 1;
+    if row.chars.[i] = '\t' then
+      rx := !rx + (caml_writer_tab_stop - 1 - (i mod caml_writer_tab_stop))
+  done;
+  !rx
 
 let editor_update_row (row : editor_row) : editor_row =
   let tabs = ref 0 in
@@ -27,7 +23,11 @@ let editor_update_row (row : editor_row) : editor_row =
       else
         match row.chars.[index] with
         | '\t' ->
-            new_render' row (index + 1) (acc ^ String.make (caml_writer_tab_stop - (index mod caml_writer_tab_stop)) ' ')
+            new_render' row (index + 1)
+              (acc
+              ^ String.make
+                  (caml_writer_tab_stop - (index mod caml_writer_tab_stop))
+                  ' ')
         | _ ->
             new_render' row (index + 1) (acc ^ String.make 1 row.chars.[index])
     in

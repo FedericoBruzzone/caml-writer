@@ -60,15 +60,21 @@ let editor_draw_rows (ab : abuf ref) =
             | _ when get_erow_rsize filerow - get_coloff () < 0 -> 0
             | _ -> get_erow_rsize filerow - get_coloff ()
           in
-          (* let sub_row = *)
-          (*       try String.sub (get_erow_render filerow) (get_coloff ()) (len) *)
-          (*       with Invalid_argument _ -> "" *)
-          let sub_row = ref "" in
-          let erow_render = get_erow_render filerow in
-          for i = get_coloff () to len - 1 do
-            sub_row := !sub_row ^ String.make 1 erow_render.[i]
-            done;
-            ab_append ab !sub_row len
+
+          (* let sub_row = String.sub (get_erow_render filerow) (get_coloff ()) (len) *)
+          (* in *)
+          (* ab_append ab sub_row len *)
+
+          (* let sub_row = ref "" in *)
+          (* let erow_render = get_erow_render filerow in *)
+          (* for i = get_coloff () to len - 1 do *)
+          (*   sub_row := !sub_row ^ String.make 1 erow_render.[i] *)
+          (* done; *)
+          (* ab_append ab !sub_row len *)
+
+          (* let _ = print_endline (string_of_int (get_rx ())) in *)
+          let sub_row = get_erow_render filerow in
+          ab_append ab sub_row (len - 1)
       | _ -> assert false
     in
     ab_append ab "\x1b[K" 3;
