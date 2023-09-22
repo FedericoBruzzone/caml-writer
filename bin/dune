@@ -1,7 +1,7 @@
 (executable
  (public_name camlwriter)
  (name main)
- (libraries camlwriter
+ (libraries windowsize
             unix)
  ; (module main ... )
  )
