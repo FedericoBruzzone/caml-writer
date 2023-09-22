@@ -1,3 +1,9 @@
+(** Utils *)
+
+(** [caml_writer_version] is the version of the caml_writer.
+ @author FedericoBruzzone
+ @return [string] the version of the caml_writer.
+ *)
 val caml_writer_version : string
 val caml_writer_tab_stop : int
 val caml_writer_quit_times : int

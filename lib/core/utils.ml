@@ -1,9 +1,3 @@
-(** Utils *)
-
-(** [caml_writer_version] is the version of the caml_writer.
- @author FedericoBruzzone
- @return [string] the version of the caml_writer.
- *)
 let caml_writer_version : string = "0.0.1"
 
 let caml_writer_tab_stop : int = 8

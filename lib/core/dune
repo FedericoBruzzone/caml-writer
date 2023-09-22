@@ -1,5 +1,6 @@
 (library
  (name core)
+ (public_name camlwriter.corelib)
  (libraries windowsize
             unix)
 )
