@@ -2,7 +2,7 @@
 
 (name camlwriter)
 
-(generate_opam_files true)
+; (generate_opam_files true)
 
 (source
  (github username/reponame))
@@ -22,5 +22,10 @@
  (depends ocaml dune)
  (tags
   (topics "to describe" your project)))
+
+(package
+  (name core))
+(package
+  (name windowsize))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project

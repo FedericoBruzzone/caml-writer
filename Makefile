@@ -4,17 +4,20 @@
 # ocamlfind ocamlopt -o program -linkpkg -package pkg module1.ml module2.ml
 
 DUNE = dune
-
 CAML_WRITER = camlwriter
 
-all: build
+all: clean build doc run
 
+# --verbose
 build:
-	$(DUNE) build --verbose @all
+	$(DUNE) build  @all
 
 # --profile release
 run:
 	$(DUNE) exec $(CAML_WRITER) $(if $(ARGS),$(ARGS),)
+
+doc:
+	$(DUNE) build @doc
 
 clean:
 	$(DUNE) clean

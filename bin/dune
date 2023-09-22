@@ -2,12 +2,11 @@
  (public_name camlwriter)
  (name main)
  (libraries core)
- ; (libraries windowsize
- ;            unix)
- ; (module main ... )
+ (package camlwriter)
  )
 
 (env
  (dev
   ; (flags (:standard -w -27))))
   (flags(:standard -warn-error -a))))
+
