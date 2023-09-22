@@ -16,7 +16,6 @@
 (documentation https://url/to/documentation)
 
 (package
- ; (name caml_writer)
  (name camlwriter)
  (synopsis "A short synopsis")
  (description "A longer description")

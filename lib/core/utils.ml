@@ -1,4 +1,11 @@
+(** Utils *)
+
+(** [caml_writer_version] is the version of the caml_writer.
+ @author FedericoBruzzone
+ @return [string] the version of the caml_writer.
+ *)
 let caml_writer_version : string = "0.0.1"
+
 let caml_writer_tab_stop : int = 8
 let caml_writer_quit_times : int = 3
 let backspace_key : int = 127
@@ -11,8 +18,8 @@ let home_key : int = 1005
 let end_key : int = 1006
 let page_up : int = 1007
 let page_down : int = 1008
+(* iscntrl() *)
 let is_control_char (c : int) : bool = c < 32 || c = 127
 
-(* iscntrl() *)
 let ctrl_key (c : char) : int = Char.code c land 0x1f
 let quit_times : int ref = ref caml_writer_quit_times
