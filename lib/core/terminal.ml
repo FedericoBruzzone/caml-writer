@@ -7,7 +7,6 @@ let die (s : string) =
   output_string stdout "\x1b[2J";
   (* Reposition cursor *)
   output_string stdout "\x1b[H";
-  (* Print error message *)
   Printf.eprintf "%s\r\n" s;
   exit 1
 
@@ -47,44 +46,21 @@ let enable_row_mode () : unit =
   let new_termio =
     {
       (get_orig_termio ()) with
-      (* Ctrl-V (22 byte) and Ctrl-O (15 byte) are already disable *)
-      (* Disable print character *)
       Unix.c_echo = false;
-      (* Read byte-by-byte, not line-by-line *)
       Unix.c_icanon = false;
-      (* Disable Ctrl-C (now is 3 byte) and Ctrl-Z (now is 26 byte) *)
       Unix.c_isig = false;
-      (* Disable Ctrl-S (now is 19 byte) and Ctrl-Q (now is 17 byte) *)
       Unix.c_ixon = false;
-      (* Enable Ctrl-M (now is 13 byte) and Enter (now is 13 byte) *)
       Unix.c_icrnl = false;
-      (* Enable output processing *)
       Unix.c_opost = false;
-      (* SIGINT signal to be sent to the program *)
       Unix.c_brkint = false;
-      (* Enable parity checking *)
       Unix.c_inpck = false;
-      (* 8th bit of each input byte to be stripped, meaning it will set it to 0. *)
       Unix.c_istrip = false;
-      (* Character size (now is 8 bit) *)
       Unix.c_csize = 8;
-      (* Minimum number of read bytes of input needed before input function returns *)
       Unix.c_vmin = 0;
-      (* Maximum amount of time to wait before input function returns *)
       Unix.c_vtime = 1;
     }
   in
-  try
-    (*
-        The second argument of `Unix.tcsetattr` indicates when the status change takes place:
-        immediately (TCSANOW),
-        when all pending output has been transmitted (TCSADRAIN), or
-        after flushing all input that has been received but not read (TCSAFLUSH).
-
-        TCSADRAIN is recommended when changing the output parameters;
-        TCSAFLUSH, when changing the input parameters.
-        *)
-    Unix.tcsetattr Unix.stdin Unix.TCSAFLUSH new_termio
+  try Unix.tcsetattr Unix.stdin Unix.TCSAFLUSH new_termio
   with Unix.Unix_error (err, func, arg) ->
     die
       (Printf.sprintf "tcsetattr(%s, %s, %s)" (Unix.error_message err) func arg)
