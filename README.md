@@ -63,11 +63,6 @@ The project structure is organized as follows:
     $ opam install dune merlin ocaml-lsp-server odoc ocamlformat utop dune-release
     ```
 
-4. **Install Dependencies**:
-    ```bash
-    $ opam install unix
-    ```
-
 ## Getting Started
 
 1. **Clone the Repository:** Clone this repository to your local machine using the following command:
@@ -78,35 +73,27 @@ The project structure is organized as follows:
 
 2. **Compile and Run:**
 
-    - To compile the code and create an executable with `make`, run:
+    - `make` commands:
       ```bash
-      $ make        # or make build
+      $ make clean
+      $ make build
+      $ make doc
       $ make run ARGS=[<file-path>]
       ```
 
-      eventually,
+      or simply,
 
       ```bash
-      $ make clean
+      $ make ARGS=[<file-path>] # It will run sequentially the previous commands
       ```
 
-    - To compile the code and create an executable with `dune`, run:
-        ```bash
-        $ dune build
-        $ dune exec caml_writer [<file-path>]
-        ```
-
-        eventually,
-
+    - `dune` commands:
         ```bash
         $ dune clean
+        $ dune build
+        $ dune build @doc
+        $ dune exec caml_writer [<file-path>]
         ```
-
-## Useful command
-
-`ocamlfind list`
-
-`opam list`
 
 ## Contributing
 
@@ -123,6 +110,10 @@ Contributions to this project are welcome! If you have any suggestions, improvem
 - [VT100 docs](https://vt100.net/docs/vt100-ug/contents.html)
 
 - `showkey -a` show key information
+
+- `ocamlfind list`
+
+- `opam list`
 
 ## Ispired by:
 
