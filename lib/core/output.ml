@@ -4,12 +4,14 @@ open Row
 open Buffer
 
 let editor_scroll () =
-  e :=
-    Some
-      {
-        (Option.get !e) with
-        rx = editor_row_cx_to_rx (get_erow_at (get_cy ())) (get_cx ());
-      };
+  e := Some { (Option.get !e) with rx = 0 };
+  if get_cy () < get_numrows () then
+    e :=
+      Some
+        {
+          (Option.get !e) with
+          rx = editor_row_cx_to_rx (get_erow_at (get_cy ())) (get_cx ());
+        };
   match get_cy () with
   | _ when get_cy () < get_rowoff () ->
       e := Some { (Option.get !e) with rowoff = get_cy () }
@@ -74,7 +76,7 @@ let editor_draw_rows (ab : abuf ref) =
 
           (* let _ = print_endline (string_of_int (get_rx ())) in *)
           let sub_row = get_erow_render filerow in
-          ab_append ab sub_row (len - 1)
+          ab_append ab sub_row len
       | _ -> assert false
     in
     ab_append ab "\x1b[K" 3;

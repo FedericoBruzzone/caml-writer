@@ -4,9 +4,10 @@ open Data
 let editor_row_cx_to_rx (row : editor_row) (cx : int) : int =
   let rx = ref 0 in
   for i = 0 to cx - 1 do
-    rx := !rx + 1;
     if row.chars.[i] = '\t' then
-      rx := !rx + (caml_writer_tab_stop - 1 - (i mod caml_writer_tab_stop))
+      rx := !rx + (caml_writer_tab_stop - (!rx mod caml_writer_tab_stop))
+    else
+      rx := !rx + 1
   done;
   !rx
 
@@ -16,28 +17,25 @@ let editor_update_row (row : editor_row) : editor_row =
     if row.chars.[i] = '\t' then tabs := !tabs + 1
   done;
   let rf_row = render_free row in
-  let new_render =
-    let rec new_render' row index acc =
-      if index = String.length row.chars then
-        acc
-      else
-        match row.chars.[index] with
-        | '\t' ->
-            new_render' row (index + 1)
-              (acc
-              ^ String.make
-                  (caml_writer_tab_stop - (index mod caml_writer_tab_stop))
-                  ' ')
-        | _ ->
-            new_render' row (index + 1) (acc ^ String.make 1 row.chars.[index])
-    in
-    new_render' rf_row 0 ""
-  in
+  let new_render = ref "" in
+  let index = ref 0 in
+  for j = 0 to row.size - 1 do
+    if row.chars.[j] = '\t' then
+      new_render :=
+        !new_render ^ " "
+        ^ String.make
+            (caml_writer_tab_stop - (!index mod caml_writer_tab_stop) - 1)
+            ' '
+    else (
+      new_render := !new_render ^ String.make 1 row.chars.[j];
+      index := !index + 1
+    )
+  done;
   let updated_row =
     {
       rf_row with
-      render = new_render;
-      rsize = row.size + (!tabs * (caml_writer_tab_stop - 1));
+      render = !new_render;
+      rsize = !index (*row.size + (!tabs * (caml_writer_tab_stop - 1));*);
     }
   in
   updated_row
