@@ -48,4 +48,3 @@ let editor_prompt (prompt : string) =
       editor_prompt' prompt
   in
   editor_prompt' prompt
-

@@ -3,6 +3,7 @@ open Data
 open Terminal
 open FileIO
 open Editor
+open Find
 
 let editor_move_cursor c =
   let row =
@@ -72,6 +73,7 @@ let editor_process_keypress () =
           output_string stdout "\x1b[H";
           exit 0
         )
+    | _ when c = ctrl_key 'f' -> editor_find ()
     | _ when c = ctrl_key 's' -> editor_save ()
     | _ when c = arrow_left -> editor_move_cursor c
     | _ when c = arrow_right -> editor_move_cursor c
