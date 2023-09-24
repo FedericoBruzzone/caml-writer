@@ -5,11 +5,22 @@ let editor_row_cx_to_rx (row : editor_row) (cx : int) : int =
   let rx = ref 0 in
   for i = 0 to cx - 1 do
     if row.chars.[i] = '\t' then
-      rx := !rx + (caml_writer_tab_stop - (!rx mod caml_writer_tab_stop))
-    else
-      rx := !rx + 1
+      rx := !rx + (caml_writer_tab_stop - 1 - (!rx mod caml_writer_tab_stop));
+    rx := !rx + 1
   done;
   !rx
+
+let editor_row_rx_to_cx (row : editor_row) (rx : int) : int =
+  let cur_rx = ref 0 in
+  let cx = ref 0 in
+  while !cx < row.size && !cur_rx < rx do
+    if row.chars.[!cx] = '\t' then
+      cur_rx :=
+        !cur_rx + (caml_writer_tab_stop - 1 - (!cur_rx mod caml_writer_tab_stop));
+    cur_rx := !cur_rx + 1;
+    cx := !cx + 1
+  done;
+  !cx
 
 let editor_update_row (row : editor_row) : editor_row =
   let tabs = ref 0 in
@@ -20,13 +31,15 @@ let editor_update_row (row : editor_row) : editor_row =
   let new_render = ref "" in
   let index = ref 0 in
   for j = 0 to row.size - 1 do
-    if row.chars.[j] = '\t' then
+    if row.chars.[j] = '\t' then (
       new_render :=
         !new_render ^ " "
         ^ String.make
             (caml_writer_tab_stop - (!index mod caml_writer_tab_stop) - 1)
-            ' '
-    else (
+            ' ';
+      index :=
+        !index + (caml_writer_tab_stop - (!index mod caml_writer_tab_stop))
+    ) else (
       new_render := !new_render ^ String.make 1 row.chars.[j];
       index := !index + 1
     )

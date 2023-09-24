@@ -55,19 +55,6 @@ val page_down : int
     @return [int] the key code for the page down key.
  *)
 
-val is_control_char : int -> bool
-(** [is_control_char] checks if the given character is a control character.
-    A control character is a character that is not printable.
-    @param [int] the character to check.
-    @return [bool] true if the given character is a control character, false otherwise.
- *)
-
-val ctrl_key : char -> int
-(** [ctrl_key] returns the key code for the given character.
-    @param [char] the character to get the key code for.
-    @return [int] the key code for the given character.
- *)
-
 val caml_writer_tab_stop : int
 (** [caml_writer_tab_stop] is the number of spaces used for a tabulation.
     @return [int] the number of spaces used for a tabulation.
@@ -83,3 +70,24 @@ val quit_times : int ref
     It is modified during the execution of the caml_writer.
     @return [int ref] the number of times the user has pressed the quit key.
  *)
+
+val is_control_char : int -> bool
+(** [is_control_char] checks if the given character is a control character.
+    A control character is a character that is not printable.
+    @param [int] the character to check.
+    @return [bool] true if the given character is a control character, false otherwise.
+ *)
+
+val ctrl_key : char -> int
+(** [ctrl_key] returns the key code for the given character.
+    @param [char] the character to get the key code for.
+    @return [int] the key code for the given character.
+ *)
+
+val strstr : string -> string -> int option
+(** [strstr] finds the first occurrence of the given string in the given string.
+    @param [string] the string to search in.
+    @param [string] the string to search for.
+    @return [int option] if the given string is found, the index of the first character of the given string in the given string, None otherwise.
+ *)
+

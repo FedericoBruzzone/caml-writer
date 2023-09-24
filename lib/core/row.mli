@@ -1,6 +1,7 @@
 open Data
 
 val editor_row_cx_to_rx : editor_row -> int -> int
+val editor_row_rx_to_cx : editor_row -> int -> int
 val editor_update_row : editor_row -> editor_row
 val editor_insert_row : int -> string -> int -> unit
 val editor_free_row : editor_row -> editor_row

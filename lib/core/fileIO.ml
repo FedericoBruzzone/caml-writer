@@ -1,4 +1,5 @@
 open Data
+open Buffer
 open Terminal
 open Row
 open Prompt
@@ -56,4 +57,5 @@ let editor_save () =
       save_file (get_filename ())
     )
   ) else
-    save_file file_name
+    save_file file_name;
+  ab_free prompt_buf

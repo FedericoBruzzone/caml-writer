@@ -40,5 +40,5 @@ let loop () : unit =
     editor_process_keypress ();
     loop' ()
   in
-  editor_set_status_message "HELP: Ctrl-S = save | Ctrl-Q = quit";
+  editor_set_status_message "HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find";
   loop' ()
