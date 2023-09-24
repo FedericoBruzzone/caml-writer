@@ -75,6 +75,7 @@ let editor_draw_rows (ab : abuf ref) =
           (* ab_append ab !sub_row len *)
 
           (* let _ = print_endline (string_of_int (get_rx ())) in *)
+          (* TODO *)
           let sub_row = get_erow_render filerow in
           ab_append ab sub_row len
       | _ -> assert false

@@ -24,9 +24,18 @@ let init_editor () : unit =
         dirty = 0;
       }
 
+let check_window_size () : unit =
+  let columns, rows = get_window_size () in
+  if rows = get_screenrows () - 2 && columns = get_screencols () then
+    ()
+  else
+    e :=
+      Some { (Option.get !e) with screenrows = rows - 2; screencols = columns }
+
 let loop () : unit =
   let rec loop' () =
     flush stdout;
+    check_window_size ();
     editor_refresh_screen ();
     editor_process_keypress ();
     loop' ()
