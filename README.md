@@ -4,11 +4,13 @@ The **CamlWriter** project is a terminal-based text editor that has been develop
 
 Key features of the CamlWriter:
 
-1. _Terminal Setup_: CamlWriter processes byte by byte having set the terminal to `raw mode` ([more info](https://en.wikipedia.org/wiki/POSIX_terminal_interface))
+1. _No dependencies_: CamlWriter was created without using external dependencies.
 
-2. _Terminal Interface_: CamlWriter is designed to be used entirely within a terminal environment, making it suitable for users who prefer working with text editors from the command line.
+2. _Terminal Setup_: CamlWriter processes byte by byte having set the terminal to `raw mode` ([more info](https://en.wikipedia.org/wiki/POSIX_terminal_interface)).
 
-3. _Basic Text Editing_: Users can create, open, edit, and save plain text files using standard text editing commands.
+3. _Terminal Interface_: CamlWriter is designed to be used entirely within a terminal environment, making it suitable for users who prefer working with text editors from the command line.
+
+4. _Basic Text Editing_: Users can create, open, edit, and save plain text files using standard text editing commands.
 
 ## Project Structure
 
