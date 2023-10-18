@@ -49,7 +49,7 @@ let save_file (file_name : string) =
 let editor_save () =
   let file_name = get_filename () in
   if file_name = "" then (
-    editor_prompt "(ESC to cancel) Save as: ";
+    editor_prompt "(ESC to cancel) Save as: " (fun (_) -> ());
     if !prompt_buf.len == 0 then
       editor_set_status_message "Save aborted"
     else (
